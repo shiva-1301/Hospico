@@ -22,9 +22,8 @@ RUN ./mvnw clean package -DskipTests
 # Copy the JAR file
 RUN cp target/backend-0.0.1-SNAPSHOT.jar app.jar
 
-# Expose port 8080
+# Expose the default AppSail port
 EXPOSE 8080
 
-# Run the application
-# Run the application
-ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "/app/app.jar"]
+# Run the application (let application.yml and environment variables handle config)
+CMD ["java", "-jar", "/app/app.jar"]

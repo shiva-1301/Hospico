@@ -1,11 +1,13 @@
 server:
-  port: 8080
+  port: ${PORT:${X_ZOHO_CATALYST_LISTEN_PORT:8080}}
+  address: 0.0.0.0
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/hospital_booking
-    username: postgres
-    password: Nitin456#*
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: update
@@ -13,6 +15,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+  devtools:
+    restart:
+      enabled: false
 
 springdoc:
   api-docs:
@@ -20,3 +26,7 @@ springdoc:
 
 application:
   name: hospital-booking-backend
+
+groq:
+  api:
+    key: ${GROQ_API_KEY}
