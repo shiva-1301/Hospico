@@ -1,5 +1,5 @@
 server:
-  port: ${PORT:8080}
+  port: ${PORT:${X_ZOHO_CATALYST_LISTEN_PORT:8080}}
   address: 0.0.0.0
 
 spring:
@@ -22,6 +22,15 @@ spring:
   devtools:
     restart:
       enabled: false
+  
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
 
 springdoc:
   api-docs:
