@@ -41,7 +41,7 @@ public class Clinic {
     @Getter
     @Setter
     private Double longitude;
-    @ManyToMany(fetch = FetchType.LAZY, cascade = { CascadeType.MERGE })
+    @ManyToMany(fetch = FetchType.EAGER, cascade = { CascadeType.MERGE })
     @JoinTable(name = "clinic_specializations", joinColumns = @JoinColumn(name = "clinic_id"), inverseJoinColumns = @JoinColumn(name = "specializations_id") // Changed
                                                                                                                                                              // to
                                                                                                                                                              // specializations_id

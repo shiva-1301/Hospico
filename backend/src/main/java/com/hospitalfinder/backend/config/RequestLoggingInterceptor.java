@@ -1,13 +1,16 @@
 package com.hospitalfinder.backend.config;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.LinkedList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.util.ContentCachingRequestWrapper;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -16,7 +19,7 @@ import jakarta.servlet.http.HttpServletResponse;
 public class RequestLoggingInterceptor implements HandlerInterceptor {
 
     private static final int MAX_REQUESTS = 50;
-    private static final LinkedList<Map<String, String>> recentRequests = new LinkedList<>();
+    private static final LinkedList<Map<String, Object>> recentRequests = new LinkedList<>();
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Override
@@ -28,12 +31,32 @@ public class RequestLoggingInterceptor implements HandlerInterceptor {
         }
 
         synchronized (recentRequests) {
-            Map<String, String> requestInfo = Map.of(
-                "timestamp", LocalDateTime.now().format(formatter),
-                "method", request.getMethod(),
-                "path", path,
-                "ip", getClientIP(request)
-            );
+            Map<String, Object> requestInfo = new LinkedHashMap<>();
+            requestInfo.put("timestamp", LocalDateTime.now().format(formatter));
+            requestInfo.put("method", request.getMethod());
+            requestInfo.put("path", path);
+            
+            // Add query parameters if present
+            String queryString = request.getQueryString();
+            if (queryString != null && !queryString.isEmpty()) {
+                requestInfo.put("queryParams", queryString);
+            }
+            
+            // Add request body for POST/PUT/PATCH
+            if ("POST".equals(request.getMethod()) || "PUT".equals(request.getMethod()) || "PATCH".equals(request.getMethod())) {
+                try {
+                    String body = request.getReader().lines().collect(Collectors.joining(System.lineSeparator()));
+                    if (body != null && !body.isEmpty() && body.length() < 500) {
+                        // Mask sensitive fields
+                        body = maskSensitiveData(body);
+                        requestInfo.put("requestBody", body);
+                    } else if (body != null && body.length() >= 500) {
+                        requestInfo.put("requestBody", "[Large payload: " + body.length() + " bytes]");
+                    }
+                } catch (IOException e) {
+                    requestInfo.put("requestBody", "[Unable to read]");
+                }
+            }
             
             recentRequests.addFirst(requestInfo);
             
@@ -44,19 +67,14 @@ public class RequestLoggingInterceptor implements HandlerInterceptor {
         
         return true;
     }
-
-    private String getClientIP(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        return ip != null ? ip.split(",")[0].trim() : "unknown";
+    
+    private String maskSensitiveData(String body) {
+        // Mask password fields
+        return body.replaceAll("(\"password\"\\s*:\\s*\")([^\"]+)(\")", "$1***$3")
+                   .replaceAll("(\"token\"\\s*:\\s*\")([^\"]+)(\")", "$1***$3");
     }
 
-    public static List<Map<String, String>> getRecentRequests() {
+    public static List<Map<String, Object>> getRecentRequests() {
         synchronized (recentRequests) {
             return new LinkedList<>(recentRequests);
         }

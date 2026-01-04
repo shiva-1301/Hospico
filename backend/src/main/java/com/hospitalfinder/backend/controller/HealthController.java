@@ -40,7 +40,7 @@ public class HealthController {
     }
     
     @GetMapping("/api/requests/recent")
-    public ResponseEntity<List<Map<String, String>>> getRecentRequests() {
+    public ResponseEntity<List<Map<String, Object>>> getRecentRequests() {
         return ResponseEntity.ok(RequestLoggingInterceptor.getRecentRequests());
     }
 
