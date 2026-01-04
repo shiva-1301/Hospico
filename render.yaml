@@ -3,26 +3,24 @@ services:
     name: hospico-backend
     env: docker
     plan: free
+    region: oregon
     dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     healthCheckPath: /actuator/health
     envVars:
-      - key: SPRING_PROFILES_ACTIVE
-        value: prod
-      - key: DATABASE_URL
-        value: jdbc:postgresql://hospital-db:5432/hospital_booking
-      - key: DATABASE_USERNAME
-        value: hospital_user
-      - key: DATABASE_PASSWORD
-        value: postgres
+      - key: DB_URL
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
 
   - type: web
     name: hospico-frontend
     env: docker
     plan: free
+    region: oregon
     dockerfilePath: ./hospico-frontend-main/Dockerfile
-
-databases:
-  - name: hospital-db
-    databaseName: hospital_booking
-    user: hospital_user
-    plan: free
+    dockerContext: ./hospico-frontend-main
