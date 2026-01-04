@@ -6,8 +6,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class HomeController {
 
-    @GetMapping("/")
+    @GetMapping("/info")
     public String home() {
-        return "Hospico API is running! 🏥 Access the frontend at http://localhost:5173";
+        return "Hospico API is running! Access the frontend at http://localhost:5173";
     }
 }

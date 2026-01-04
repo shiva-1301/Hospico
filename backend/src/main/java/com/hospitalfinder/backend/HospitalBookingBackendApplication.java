@@ -6,11 +6,20 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.admin.SpringApplicationAdminJmxAutoConfiguration;
+import org.springframework.boot.autoconfigure.jmx.JmxAutoConfiguration;
+import org.springframework.boot.autoconfigure.websocket.servlet.WebSocketServletAutoConfiguration;
 
-@SpringBootApplication
+@SpringBootApplication(exclude = {
+	SpringApplicationAdminJmxAutoConfiguration.class,
+	JmxAutoConfiguration.class,
+	WebSocketServletAutoConfiguration.class
+})
 @EnableScheduling
+@EnableAsync
 public class HospitalBookingBackendApplication {
 
 	private static final Logger logger = LoggerFactory.getLogger(HospitalBookingBackendApplication.class);

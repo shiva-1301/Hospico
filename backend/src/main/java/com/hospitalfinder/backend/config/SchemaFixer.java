@@ -1,17 +1,24 @@
 package com.hospitalfinder.backend.config;
 
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Component;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Async;
 
-@Configuration
+@Component
 public class SchemaFixer {
 
-    @Bean
-    public CommandLineRunner fixSchema(JdbcTemplate jdbcTemplate) {
-        return args -> {
-            System.out.println("Checking and fixing database schema...");
+    private final JdbcTemplate jdbcTemplate;
+
+    public SchemaFixer(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    @Async
+    @EventListener(ApplicationReadyEvent.class)
+    public void fixSchema() {
+        System.out.println("Checking and fixing database schema...");
 
             // Create medical_records table manually because ddl-auto=update failed with
             // BLOB type
@@ -35,6 +42,5 @@ public class SchemaFixer {
             } catch (Exception e) {
                 System.err.println("Schema fix failed: " + e.getMessage());
             }
-        };
     }
 }

@@ -1,29 +1,27 @@
-# Use OpenJDK 21 as the base image
-FROM eclipse-temurin:21-jdk-alpine
+# ---------- Build stage ----------
+FROM eclipse-temurin:21-jdk-alpine AS build
 
-# Install Maven
 RUN apk add --no-cache maven
 
-# Set the working directory
 WORKDIR /app
 
-# Copy the pom.xml and download dependencies
-COPY backend/pom.xml .
-COPY backend/.mvn .mvn
-COPY backend/mvnw .
-COPY backend/src src
-
-# Make mvnw executable
+COPY pom.xml .
+COPY .mvn .mvn
+COPY mvnw .
 RUN chmod +x mvnw
+RUN ./mvnw -B dependency:go-offline
 
-# Build the application
+COPY src src
 RUN ./mvnw clean package -DskipTests
 
-# Copy the JAR file
-RUN cp target/backend-0.0.1-SNAPSHOT.jar app.jar
+# ---------- Runtime stage ----------
+FROM eclipse-temurin:21-jre-alpine
 
-# Expose the default AppSail port
+WORKDIR /app
+
+COPY --from=build /app/target/backend-0.0.1-SNAPSHOT.jar app.jar
+
+# AppSail injects X_ZOHO_CATALYST_LISTEN_PORT
 EXPOSE 8080
 
-# Run the application (let application.yml and environment variables handle config)
 CMD ["java", "-jar", "/app/app.jar"]

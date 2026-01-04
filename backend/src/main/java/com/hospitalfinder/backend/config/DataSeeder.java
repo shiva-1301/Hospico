@@ -3,9 +3,10 @@ package com.hospitalfinder.backend.config;
 import java.util.List;
 import java.util.Random;
 
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Component;
+import org.springframework.scheduling.annotation.Async;
 
 import com.hospitalfinder.backend.entity.Clinic;
 import com.hospitalfinder.backend.entity.Doctor;
@@ -13,19 +14,26 @@ import com.hospitalfinder.backend.entity.Specialization;
 import com.hospitalfinder.backend.repository.ClinicRepository;
 import com.hospitalfinder.backend.repository.DoctorRepository;
 
-@Configuration
+@Component
 public class DataSeeder {
 
-    @Bean
-    public CommandLineRunner fixDoctorNames(ClinicRepository clinicRepository,
-            DoctorRepository doctorRepository) {
-        return args -> {
-            List<Doctor> allDoctors = doctorRepository.findAll();
+    private final ClinicRepository clinicRepository;
+    private final DoctorRepository doctorRepository;
+
+    public DataSeeder(ClinicRepository clinicRepository, DoctorRepository doctorRepository) {
+        this.clinicRepository = clinicRepository;
+        this.doctorRepository = doctorRepository;
+    }
+
+    @Async
+    @EventListener(ApplicationReadyEvent.class)
+    public void fixDoctorNames() {
+        List<Doctor> allDoctors = doctorRepository.findAll();
             if (allDoctors.isEmpty()) {
                 System.out.println("No doctors found. Please ensure clinics are seeded or manually inserted.");
                 // Fallback: If no doctors exist, we might want to generate them for existing
                 // clinics.
-                seedMissingDoctors(clinicRepository, doctorRepository);
+                seedMissingDoctors();
                 return;
             }
 
@@ -59,11 +67,10 @@ public class DataSeeder {
             }
 
             // Ensure all clinics, including new ones, have doctors
-            seedMissingDoctors(clinicRepository, doctorRepository);
-        };
+            seedMissingDoctors();
     }
 
-    private void seedMissingDoctors(ClinicRepository clinicRepository, DoctorRepository doctorRepository) {
+    private void seedMissingDoctors() {
         var clinics = clinicRepository.findAllWithSpecializations();
         Random random = new Random();
         String[] firstNames = {
