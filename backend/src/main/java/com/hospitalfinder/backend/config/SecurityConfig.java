@@ -38,6 +38,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/signup", "/api/auth/login", "/api/users/me").permitAll()
                         .requestMatchers("/api/clinics/**", "/api/specializations/**", "/api/chat", "/api/health", "/health/**")
                         .permitAll()
+                        .requestMatchers("/api/requests/**").permitAll()
                         .requestMatchers("/actuator/**", "/actuator/health").permitAll()
                         .requestMatchers("/api/users/**").authenticated()
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()

@@ -12,6 +12,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { useSelector } from "react-redux";
 import type { RootState } from "./store/store";
 import { useAuthInitializer } from "./hooks/useAuthInitializer";
+import { useKeepAlive } from "./hooks/useKeepAlive";
 import FullScreenLoader from "./components/FullScreenLoader";
 import PartnerLogin from "./pages/PartnerLogin";
 import Emergency from "./pages/Emergency";
@@ -25,6 +26,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 
 function App() {
   useAuthInitializer();
+  useKeepAlive(); // Keep services alive on Render
 
   function TitleUpdater() {
     const location = useLocation();

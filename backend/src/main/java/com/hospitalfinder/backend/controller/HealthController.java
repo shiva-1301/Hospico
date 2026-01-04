@@ -1,11 +1,14 @@
 package com.hospitalfinder.backend.controller;
 
-import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.hospitalfinder.backend.config.RequestLoggingInterceptor;
 
 @RestController
 public class HealthController {
@@ -27,11 +30,18 @@ public class HealthController {
         endpoints.put("Reviews", "/api/reviews");
         endpoints.put("Medical Records", "/api/medical-records");
         endpoints.put("Chat", "/api/chat");
+        endpoints.put("Recent Requests", "/api/requests/recent");
         endpoints.put("API Documentation", "/swagger-ui.html");
         
         response.put("endpoints", endpoints);
+        response.put("recentRequests", RequestLoggingInterceptor.getRecentRequests());
         
         return ResponseEntity.ok(response);
+    }
+    
+    @GetMapping("/api/requests/recent")
+    public ResponseEntity<List<Map<String, String>>> getRecentRequests() {
+        return ResponseEntity.ok(RequestLoggingInterceptor.getRecentRequests());
     }
 
     @GetMapping("/api/health")

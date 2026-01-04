@@ -4,7 +4,7 @@ services:
     env: docker
     plan: free
     region: oregon
-    dockerfilePath: ./backend/Dockerfile
+    dockerfilePath: ./Dockerfile
     dockerContext: ./backend
     healthCheckPath: /actuator/health
     envVars:
@@ -22,5 +22,5 @@ services:
     env: docker
     plan: free
     region: oregon
-    dockerfilePath: ./hospico-frontend-main/Dockerfile
+    dockerfilePath: ./Dockerfile
     dockerContext: ./hospico-frontend-main
