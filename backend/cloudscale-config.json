@@ -1,0 +1,25 @@
+{
+  "name": "hospico-backend",
+  "image": "docker.io/crvpt/hospico-backend:v28-cloudscale",
+  "port": 8080,
+  "environment": {
+    "DB_URL": "jdbc:postgresql://dpg-d4rh6lqli9vc73a291e0-a.oregon-postgres.render.com:5432/hospital_booking_k625?sslmode=require",
+    "DB_USER": "hospital_user",
+    "DB_PASSWORD": "FLD2gE6oQc7XeHQmgsPXULbRvPvUqsPl",
+    "GROQ_API_KEY": "your-groq-api-key-here"
+  },
+  "healthCheck": {
+    "path": "/actuator/health",
+    "interval": 30,
+    "timeout": 10,
+    "unhealthyThreshold": 3
+  },
+  "resources": {
+    "cpu": "1",
+    "memory": "512Mi"
+  },
+  "scaling": {
+    "minInstances": 1,
+    "maxInstances": 3
+  }
+}

@@ -1,7 +1,5 @@
 # ---------- Build stage ----------
-FROM eclipse-temurin:21-jdk-alpine AS build
-
-RUN apk add --no-cache maven
+FROM eclipse-temurin:21-jdk AS build
 
 WORKDIR /app
 
@@ -15,13 +13,14 @@ COPY src src
 RUN ./mvnw clean package -DskipTests
 
 # ---------- Runtime stage ----------
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
 COPY --from=build /app/target/backend-0.0.1-SNAPSHOT.jar app.jar
 
-# AppSail injects X_ZOHO_CATALYST_LISTEN_PORT
+ENV PATH="/opt/java/openjdk/bin:${PATH}"
+
 EXPOSE 8080
 
 CMD ["java", "-jar", "/app/app.jar"]
