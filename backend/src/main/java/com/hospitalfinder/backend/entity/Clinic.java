@@ -70,7 +70,7 @@ public class Clinic {
     private Integer reviews;
     @Getter
     @Setter
-    @OneToMany(mappedBy = "clinic", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "clinic", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Doctor> doctors = new ArrayList<>();
     @Getter
     @Setter

@@ -18,7 +18,7 @@ import jakarta.servlet.http.HttpServletResponse;
 @Component
 public class RequestLoggingInterceptor implements HandlerInterceptor {
 
-    private static final int MAX_REQUESTS = 50;
+    private static final int MAX_REQUESTS = 10;
     private static final LinkedList<Map<String, Object>> recentRequests = new LinkedList<>();
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
