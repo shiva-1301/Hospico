@@ -24,9 +24,10 @@ public class RequestLoggingInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        // Skip logging for static resources and health checks
+        // Skip logging for static resources, health checks, and auth endpoints
         String path = request.getRequestURI();
-        if (path.equals("/") || path.equals("/api/health") || path.equals("/actuator/health") || path.equals("/api/requests/recent")) {
+        if (path.equals("/") || path.equals("/api/health") || path.equals("/actuator/health") 
+            || path.equals("/api/requests/recent") || path.startsWith("/api/auth/")) {
             return true;
         }
 
@@ -42,8 +43,10 @@ public class RequestLoggingInterceptor implements HandlerInterceptor {
                 requestInfo.put("queryParams", queryString);
             }
             
-            // Add request body for POST/PUT/PATCH
-            if ("POST".equals(request.getMethod()) || "PUT".equals(request.getMethod()) || "PATCH".equals(request.getMethod())) {
+            // Skip body reading for auth endpoints to avoid "getReader() already called" error
+            // Add request body for POST/PUT/PATCH (except auth endpoints)
+            if (("POST".equals(request.getMethod()) || "PUT".equals(request.getMethod()) || "PATCH".equals(request.getMethod()))
+                && !path.startsWith("/api/auth/")) {
                 try {
                     String body = request.getReader().lines().collect(Collectors.joining(System.lineSeparator()));
                     if (body != null && !body.isEmpty() && body.length() < 500) {
