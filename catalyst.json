@@ -2,7 +2,7 @@
   "appsail": [
     {
       "source": ".",
-      "name": "hospico-backend"
+      "name": "Hospiico-Backend"
     }
   ]
 }

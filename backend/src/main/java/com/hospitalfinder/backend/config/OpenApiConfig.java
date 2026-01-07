@@ -1,12 +1,13 @@
 package com.hospitalfinder.backend.config;
 
-import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.oas.models.info.Info;
-import io.swagger.v3.oas.models.servers.Server;
+import java.util.List;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.List;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.servers.Server;
 
 @Configuration
 public class OpenApiConfig {
@@ -20,7 +21,7 @@ public class OpenApiConfig {
                         .version("1.0"))
                 .servers(List.of(
                         new Server().url("http://localhost:8080").description("Local Development Server"),
-                        new Server().url("https://hospital-finder-backend-ls4y.onrender.com")
-                                .description("Production Server (Render)")));
+                        new Server().url("https://hospico-backend.onrender.com").description("Render Production"),
+                        new Server().url("https://hospico-backend-50037434927.development.catalystappsail.in").description("AppSail Production")));
     }
 }

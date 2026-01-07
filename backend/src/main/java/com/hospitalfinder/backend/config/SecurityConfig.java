@@ -30,21 +30,25 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(Customizer.withDefaults()) // Enable CORS with above bean
+                .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/signup", "/api/auth/login", "/api/users/me").permitAll()
-                        .requestMatchers("/api/clinics/**", "/api/specializations/**", "/api/chat", "/api/health", "/health/**")
-                        .permitAll()
-                        .requestMatchers("/api/requests/**").permitAll()
-                        .requestMatchers("/actuator/**", "/actuator/health").permitAll()
-                        .requestMatchers("/api/users/**").authenticated()
+                        // CORS preflight - MUST BE FIRST
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/", "/error", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
-                        .permitAll()
-                        .anyRequest().authenticated());
+                        // Health check endpoints
+                        .requestMatchers("/", "/api/health", "/health/**", "/actuator/**", "/actuator/health").permitAll()
+                        // Auth endpoints
+                        .requestMatchers("/api/auth/signup", "/api/auth/login", "/api/users/me").permitAll()
+                        // Public API endpoints
+                        .requestMatchers("/api/clinics/**", "/api/specializations/**", "/api/chat").permitAll()
+                        .requestMatchers("/api/requests/**").permitAll()
+                        // Documentation
+                        .requestMatchers("/error", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // Protected endpoints
+                        .requestMatchers("/api/users/**").authenticated()
+                        .anyRequest().authenticated())
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

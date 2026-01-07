@@ -85,29 +85,28 @@ public class ChatController {
 
     @PostMapping("/chat")
     public ResponseEntity<?> chat(@RequestBody ChatRequest request) {
-        try {
-            // Get the latest user message
-            List<ChatRequest.Message> messages = request.getMessages();
-            if (messages != null && !messages.isEmpty()) {
-                ChatRequest.Message lastMessage = messages.get(messages.size() - 1);
-                String content = lastMessage.getContent();
+        // Get the latest user message
+        List<ChatRequest.Message> messages = request.getMessages();
+        if (messages != null && !messages.isEmpty()) {
+            ChatRequest.Message lastMessage = messages.get(messages.size() - 1);
+            String content = lastMessage.getContent();
 
-                if (content != null) {
-                    // Check if it's a hospital search query (explicit)
-                    Matcher matcher = HOSPITAL_QUERY_PATTERN.matcher(content.trim());
-                    if (matcher.find()) {
-                        String placeName = matcher.group(1).trim();
-                        System.out.println("Hospital search detected for place: " + placeName);
-                        return handleHospitalCitySearch(placeName);
-                    }
+            if (content != null) {
+                // Check if it's a hospital search query (explicit)
+                Matcher matcher = HOSPITAL_QUERY_PATTERN.matcher(content.trim());
+                if (matcher.find()) {
+                    String placeName = matcher.group(1).trim();
+                    System.out.println("Hospital search detected for place: " + placeName);
+                    return handleHospitalCitySearch(placeName);
                 }
             }
+        }
 
-            // Check if message contains symptom keywords
-            boolean containsSymptoms = containsSymptomKeywords(
-                    messages != null && !messages.isEmpty()
-                            ? messages.get(messages.size() - 1).getContent()
-                            : "");
+        // Check if message contains symptom keywords
+        boolean containsSymptoms = containsSymptomKeywords(
+                messages != null && !messages.isEmpty()
+                        ? messages.get(messages.size() - 1).getContent()
+                        : "");
 
         // Proceed with AI chat
         String url = "https://api.groq.com/openai/v1/chat/completions";

@@ -1,0 +1,109 @@
+Subject: AppSail Deployment - Application Running But Returns "Execution Failed" Error
+
+Hello Zoho Catalyst Support Team,
+
+I am experiencing a persistent issue with my AppSail deployment where the application starts successfully but the AppSail URL returns an "Execution failed. Please check the startup command or port" error.
+
+**Issue Summary:**
+- AppSail Service: Hospiico-Backend (ID: 50037434927)
+- URL: https://hospiico-backend-50037434927.development.catalystappsail.in
+- Error: {"status":"failure","data":{"message":"Execution failed. Please check the startup command or port.","error_code":"INTERNAL_SERVER_ERROR"}}
+- Platform: JavaSE, Java 17
+- Project: HospiiCo
+
+**What I've Confirmed (Application is Working):**
+1. ✅ Application logs show successful startup on port 9000:
+   - "Tomcat initialized with port 9000 (http)"
+   - "HikariPool-1 - Start completed" (database connection successful)
+   - Spring Boot application initializes completely
+
+2. ✅ Port configuration is correct:
+   - app-config.json: "port": 9000
+   - Console Configuration: Port 9000
+   - Application startup: java -Dserver.port=9000 -jar target/backend-0.0.1-SNAPSHOT.jar
+
+3. ✅ Health endpoints exist and are accessible:
+   - Root endpoint: GET / returns {"status":"UP","service":"Hospico Hospital Booking API"}
+   - Health check: GET /api/health returns {"status":"UP","message":"Service is running"}
+   - Spring Security temporarily disabled (all requests permitAll) to rule out authentication blocking
+
+4. ✅ Build completes successfully:
+   - JAR file: backend-0.0.1-SNAPSHOT.jar
+   - Maven build: BUILD SUCCESS
+   - No compilation errors
+
+**Configuration Details:**
+
+app-config.json:
+```json
+{
+    "command": "java -Dserver.port=9000 -jar target/backend-0.0.1-SNAPSHOT.jar",
+    "build_path": "backend",
+    "stack": "java17",
+    "port": 9000,
+    "health_check_path": "/api/health",
+    "memory": 1024,
+    "platform": "javase"
+}
+```
+
+catalyst.json:
+```json
+{
+  "appsail": [
+    {
+      "source": ".",
+      "name": "Hospiico-Backend"
+    }
+  ]
+}
+```
+
+Console Startup Command:
+java -Dserver.port=9000 -jar target/backend-0.0.1-SNAPSHOT.jar
+
+**What I've Tried:**
+1. Verified port 9000 configuration in all files (application.yml, app-config.json, console)
+2. Added explicit -Dserver.port=9000 JVM argument
+3. Increased memory allocation from 256MB to 1024MB
+4. Temporarily disabled Spring Security to eliminate authentication blocking
+5. Ensured root endpoint "/" is publicly accessible
+6. Added health_check_path configuration
+7. Verified startup command matches console and app-config.json
+8. Multiple redeployments via Catalyst CLI (catalyst deploy)
+
+**Environment Variables Set:**
+- DB_URL: PostgreSQL database on Render (external, connection verified in logs)
+- DB_USER: hospital_user
+- DB_PASSWORD: [configured]
+- GROQ_API_KEY: [configured]
+
+**The Problem:**
+Despite the application logs confirming that:
+- The application starts successfully
+- Tomcat binds to port 9000
+- Database connections are established
+- All endpoints are defined and accessible
+
+The AppSail URL consistently returns "Execution failed" error, suggesting the AppSail proxy/load balancer cannot reach the application.
+
+**What I Need:**
+1. Confirmation that AppSail's internal health check probe can reach applications on port 9000
+2. Verification of any additional AppSail configuration required for JavaSE platform
+3. Check if there are any console-side overrides or cached configurations preventing proper routing
+4. Guidance on whether X_ZOHO_CATALYST_LISTEN_PORT environment variable needs to be explicitly set
+5. Any AppSail infrastructure logs showing why the health check is failing
+
+**Additional Context:**
+This is a Spring Boot 3.4.5 application previously deployed successfully on Render.com. I am migrating to Zoho Catalyst AppSail following your earlier guidance about port 9000 requirement (from support ticket reference X_ZOHO_CATALYST_LISTEN_PORT).
+
+The application code is working correctly - this appears to be an AppSail infrastructure/routing configuration issue rather than an application issue.
+
+Could you please investigate the AppSail service configuration and advise what additional steps are needed to establish proper routing between the AppSail URL and the running application?
+
+Thank you for your assistance.
+
+Best regards,
+[Your Name]
+Project: HospiiCo
+AppSail Service: Hospiico-Backend-50037434927

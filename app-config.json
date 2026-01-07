@@ -1,7 +1,13 @@
 {
-    "stack": "java17",
-    "scripts": {
-        "build": "mvn -f backend/pom.xml -DskipTests clean package",
-        "start": "java -jar backend/target/backend-0.0.1-SNAPSHOT.jar"
-    }
+	"command": "java -Xms256m -Xmx1024m -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -Dserver.port=9000 -Dspring.jmx.enabled=false -jar target/backend-0.0.1-SNAPSHOT.jar",
+	"build_path": "backend",
+	"stack": "java17",
+	"port": 9000,
+	"health_check_path": "/api/health",
+	"env_variables": {},
+	"memory": 1024,
+	"scripts": {
+		"build": "mvn -DskipTests clean package"
+	},
+	"platform": "javase"
 }
