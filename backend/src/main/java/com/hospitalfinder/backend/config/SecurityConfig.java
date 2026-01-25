@@ -37,9 +37,11 @@ public class SecurityConfig {
                         // CORS preflight - MUST BE FIRST
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                         // Health check endpoints
-                        .requestMatchers("/", "/api/health", "/health/**", "/actuator/**", "/actuator/health").permitAll()
+                        .requestMatchers("/", "/api/health", "/health/**", "/actuator/**", "/actuator/health")
+                        .permitAll()
                         // Auth endpoints
                         .requestMatchers("/api/auth/signup", "/api/auth/login", "/api/users/me").permitAll()
+                        .requestMatchers("/api/test-zoho").permitAll()
                         // Public API endpoints
                         .requestMatchers("/api/clinics/**", "/api/specializations/**", "/api/chat").permitAll()
                         .requestMatchers("/api/requests/**").permitAll()

@@ -19,17 +19,21 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class ZohoUserService {
-    
+
     private final ZohoDataStoreService dataStoreService;
     private final PasswordEncoder passwordEncoder;
-    
+
     @Value("${zoho.enabled:false}")
     private boolean zohoEnabled;
-    
+
     @Value("${zoho.users.table.id}")
     private String usersTableId;
+
+    @Value("${zoho.users.table.name:users}")
+    private String usersTableName;
+
     private static final DateTimeFormatter ZOHO_DATETIME_FORMAT = DateTimeFormatter.ofPattern("dd-MMM-yyyy HH:mm:ss");
-    
+
     /**
      * Check if a user exists by email
      */
@@ -37,16 +41,17 @@ public class ZohoUserService {
         if (!zohoEnabled) {
             return false;
         }
-        
+
         try {
-            JsonNode user = dataStoreService.findByField(usersTableId, "email", email);
+            // Use table name for ZCQL queries
+            JsonNode user = dataStoreService.findByField(usersTableName, "email", email);
             return user != null;
         } catch (Exception e) {
             log.error("Failed to check if user exists by email: {}", email, e);
             throw new RuntimeException("Failed to check user existence", e);
         }
     }
-    
+
     /**
      * Find a user by email
      */
@@ -54,9 +59,10 @@ public class ZohoUserService {
         if (!zohoEnabled) {
             return null;
         }
-        
+
         try {
-            JsonNode user = dataStoreService.findByField(usersTableId, "email", email);
+            // Use table name for ZCQL queries
+            JsonNode user = dataStoreService.findByField(usersTableName, "email", email);
             if (user == null) {
                 return null;
             }
@@ -66,7 +72,7 @@ public class ZohoUserService {
             throw new RuntimeException("Failed to find user", e);
         }
     }
-    
+
     /**
      * Create a new user
      */
@@ -74,7 +80,7 @@ public class ZohoUserService {
         if (!zohoEnabled) {
             throw new RuntimeException("Zoho Data Store is not enabled");
         }
-        
+
         try {
             Map<String, Object> userData = new HashMap<>();
             userData.put("name", name);
@@ -84,23 +90,23 @@ public class ZohoUserService {
             userData.put("role", role.name());
             userData.put("created_at", LocalDateTime.now().format(ZOHO_DATETIME_FORMAT));
             userData.put("updated_at", LocalDateTime.now().format(ZOHO_DATETIME_FORMAT));
-            
+
             JsonNode response = dataStoreService.insertRecord(usersTableId, userData);
-            
-            // Extract the created record from response
+
+            // Extract the created record from response (REST API returns wrapped data)
             JsonNode dataNode = response.get("data");
             if (dataNode != null && dataNode.isArray() && dataNode.size() > 0) {
                 return mapToUserData(dataNode.get(0));
             }
-            
-            throw new RuntimeException("Failed to create user: invalid response structure");
-            
+
+            throw new RuntimeException("Failed to create user: no data returned");
+
         } catch (Exception e) {
             log.error("Failed to create user: {}", email, e);
             throw new RuntimeException("Failed to create user", e);
         }
     }
-    
+
     /**
      * Map Zoho record to UserData DTO
      */
@@ -114,7 +120,7 @@ public class ZohoUserService {
         user.setRole(Role.valueOf(node.get("role").asText()));
         return user;
     }
-    
+
     /**
      * Simple DTO for user data
      */
@@ -125,23 +131,53 @@ public class ZohoUserService {
         private String phone;
         private String password;
         private Role role;
-        
-        public Long getId() { return id; }
-        public void setId(Long id) { this.id = id; }
-        
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
-        
-        public String getEmail() { return email; }
-        public void setEmail(String email) { this.email = email; }
-        
-        public String getPhone() { return phone; }
-        public void setPhone(String phone) { this.phone = phone; }
-        
-        public String getPassword() { return password; }
-        public void setPassword(String password) { this.password = password; }
-        
-        public Role getRole() { return role; }
-        public void setRole(Role role) { this.role = role; }
+
+        public Long getId() {
+            return id;
+        }
+
+        public void setId(Long id) {
+            this.id = id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getEmail() {
+            return email;
+        }
+
+        public void setEmail(String email) {
+            this.email = email;
+        }
+
+        public String getPhone() {
+            return phone;
+        }
+
+        public void setPhone(String phone) {
+            this.phone = phone;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+
+        public Role getRole() {
+            return role;
+        }
+
+        public void setRole(Role role) {
+            this.role = role;
+        }
     }
 }

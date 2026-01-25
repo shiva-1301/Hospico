@@ -8,6 +8,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.scheduling.annotation.Async;
 
+import org.springframework.beans.factory.annotation.Value;
 import com.hospitalfinder.backend.entity.Clinic;
 import com.hospitalfinder.backend.entity.Doctor;
 import com.hospitalfinder.backend.entity.Specialization;
@@ -20,54 +21,65 @@ public class DataSeeder {
     private final ClinicRepository clinicRepository;
     private final DoctorRepository doctorRepository;
 
+    @Value("${zoho.enabled:false}")
+    private boolean zohoEnabled;
+
     public DataSeeder(ClinicRepository clinicRepository, DoctorRepository doctorRepository) {
         this.clinicRepository = clinicRepository;
         this.doctorRepository = doctorRepository;
     }
 
-    @Async
     @EventListener(ApplicationReadyEvent.class)
+    public void onStartup() {
+        if (zohoEnabled) {
+            System.out.println("Zoho enabled - skipping DataSeeder (Postgres)");
+            return;
+        }
+        fixDoctorNames();
+    }
+
+    @Async
     public void fixDoctorNames() {
         List<Doctor> allDoctors = doctorRepository.findAll();
-            if (allDoctors.isEmpty()) {
-                System.out.println("No doctors found. Please ensure clinics are seeded or manually inserted.");
-                // Fallback: If no doctors exist, we might want to generate them for existing
-                // clinics.
-                seedMissingDoctors();
-                return;
-            }
-
-            Random random = new Random();
-            String[] firstNames = {
-                    "Srinivas", "Ravi", "Lakshmi", "Priya", "Rahul", "Anjali", "Vikram", "Sneha",
-                    "Rajesh", "Kavita", "Suresh", "Meera", "Manoj", "Divya", "Arjun", "Deepa",
-                    "Vijay", "Swathi", "Kiran", "Nitya", "Mahesh", "Padma", "Gopal", "Anita"
-            };
-            String[] lastNames = {
-                    "Rao", "Reddy", "Latha", "Kumar", "Sharma", "Gupta", "Singh", "Mehta", "Patil",
-                    "Nair", "Prasad", "Varma", "Chowdary", "Naidu", "Babu", "Raju", "Murthy", "Sastry"
-            };
-
-            for (Doctor doc : allDoctors) {
-                String name = doc.getName();
-                String spec = doc.getSpecialization();
-
-                // Check if name is generic (contains "Specialist" or equals specialization
-                // name)
-                if (name.contains("Specialist") || name.equalsIgnoreCase(spec)
-                        || name.equalsIgnoreCase(spec + " Specialist")) {
-                    String newName = "Dr. " + firstNames[random.nextInt(firstNames.length)] + " "
-                            + lastNames[random.nextInt(lastNames.length)];
-                    doc.setName(newName);
-                    doc.setBiography("Experienced " + spec.toLowerCase() + " specialist with over "
-                            + (10 + random.nextInt(15)) + " years of practice.");
-                    doctorRepository.save(doc);
-                    System.out.println("Renamed " + name + " to " + newName);
-                }
-            }
-
-            // Ensure all clinics, including new ones, have doctors
+        if (allDoctors.isEmpty()) {
+            System.out.println("No doctors found. Please ensure clinics are seeded or manually inserted.");
+            // Fallback: If no doctors exist, we might want to generate them for existing
+            // clinics.
             seedMissingDoctors();
+            return;
+        }
+
+        Random random = new Random();
+        String[] firstNames = {
+                "Srinivas", "Ravi", "Lakshmi", "Priya", "Rahul", "Anjali", "Vikram", "Sneha",
+                "Rajesh", "Kavita", "Suresh", "Meera", "Manoj", "Divya", "Arjun", "Deepa",
+                "Vijay", "Swathi", "Kiran", "Nitya", "Mahesh", "Padma", "Gopal", "Anita"
+        };
+        String[] lastNames = {
+                "Rao", "Reddy", "Latha", "Kumar", "Sharma", "Gupta", "Singh", "Mehta", "Patil",
+                "Nair", "Prasad", "Varma", "Chowdary", "Naidu", "Babu", "Raju", "Murthy", "Sastry"
+        };
+
+        for (Doctor doc : allDoctors) {
+            String name = doc.getName();
+            String spec = doc.getSpecialization();
+
+            // Check if name is generic (contains "Specialist" or equals specialization
+            // name)
+            if (name.contains("Specialist") || name.equalsIgnoreCase(spec)
+                    || name.equalsIgnoreCase(spec + " Specialist")) {
+                String newName = "Dr. " + firstNames[random.nextInt(firstNames.length)] + " "
+                        + lastNames[random.nextInt(lastNames.length)];
+                doc.setName(newName);
+                doc.setBiography("Experienced " + spec.toLowerCase() + " specialist with over "
+                        + (10 + random.nextInt(15)) + " years of practice.");
+                doctorRepository.save(doc);
+                System.out.println("Renamed " + name + " to " + newName);
+            }
+        }
+
+        // Ensure all clinics, including new ones, have doctors
+        seedMissingDoctors();
     }
 
     private void seedMissingDoctors() {
