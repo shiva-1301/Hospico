@@ -44,7 +44,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/test-zoho").permitAll()
                         // Public API endpoints
                         .requestMatchers("/api/clinics/**", "/api/specializations/**", "/api/chat").permitAll()
-                        .requestMatchers("/api/requests/**").permitAll()
+                        .requestMatchers("/api/requests/**", "/api/test-zoho").permitAll()
                         // Documentation
                         .requestMatchers("/error", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // Protected endpoints
