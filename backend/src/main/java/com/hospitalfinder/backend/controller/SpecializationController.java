@@ -1,23 +1,26 @@
 package com.hospitalfinder.backend.controller;
 
-import com.hospitalfinder.backend.entity.Specialization;
-import com.hospitalfinder.backend.repository.SpecializationRepository;
-import lombok.RequiredArgsConstructor;
+import java.util.List;
+
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
+import com.hospitalfinder.backend.entity.Specialization;
+import com.hospitalfinder.backend.service.SpecializationService;
+
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/specializations")
 @RequiredArgsConstructor
 public class SpecializationController {
-    private final SpecializationRepository specializationRepository;
+
+    private final SpecializationService specializationService;
 
     @GetMapping
-    public List<Specialization> getAll() {
-        return specializationRepository.findAll();
+    public ResponseEntity<List<Specialization>> getAllSpecializations() {
+        return ResponseEntity.ok(specializationService.getAllSpecializations());
     }
 }
-

@@ -39,20 +39,7 @@ public class ZohoAuthService {
             return accessToken;
         }
 
-        // Fallback to PAT
-        if (zohoConfig.getPatToken() != null && !zohoConfig.getPatToken().isEmpty()) {
-            return zohoConfig.getPatToken();
-        }
-
         throw new RuntimeException("No valid Zoho credentials found (Client ID/Secret/Refresh Token OR PAT)");
-    }
-
-    public boolean isUsingPat() {
-        // If we have a refresh token, we are NOT using PAT (we are using OAuth)
-        if (zohoConfig.getRefreshToken() != null && !zohoConfig.getRefreshToken().isEmpty()) {
-            return false;
-        }
-        return zohoConfig.getPatToken() != null && !zohoConfig.getPatToken().isEmpty();
     }
 
     private void refreshAccessToken() {

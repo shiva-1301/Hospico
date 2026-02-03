@@ -13,8 +13,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.hospitalfinder.backend.dto.LoginRequest;
 import com.hospitalfinder.backend.dto.LoginResponse;
 import com.hospitalfinder.backend.entity.User;
-import com.hospitalfinder.backend.repository.UserRepository;
 import com.hospitalfinder.backend.service.JwtService;
+import com.hospitalfinder.backend.service.ZohoUserService;
+import com.hospitalfinder.backend.service.ZohoUserService.UserData;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
@@ -23,27 +24,35 @@ import jakarta.servlet.http.HttpServletResponse;
 @RequestMapping("/api/auth")
 public class LoginController {
 
-    private final UserRepository userRepository;
+    private final ZohoUserService zohoUserService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
-    public LoginController(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
-        this.userRepository = userRepository;
+    public LoginController(ZohoUserService zohoUserService, PasswordEncoder passwordEncoder, JwtService jwtService) {
+        this.zohoUserService = zohoUserService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
     }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request, HttpServletResponse response) {
-        User user = userRepository.findByEmail(request.getEmail());
-        if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        UserData userData = zohoUserService.findByEmail(request.getEmail());
+
+        if (userData == null || !passwordEncoder.matches(request.getPassword(), userData.getPassword())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new LoginResponse(false, "Invalid credentials", null, null, null, null, null));
         }
 
+        // Convert UserData to User POJO for JWT generation
+        User user = new User();
+        user.setId(userData.getId());
+        user.setEmail(userData.getEmail());
+        user.setName(userData.getName());
+        user.setRole(userData.getRole());
+
         // Generate JWT token
         String jwtToken = jwtService.generateToken(user);
-        
+
         // Create JWT cookie
         Cookie jwtCookie = new Cookie("jwt_token", jwtToken);
         jwtCookie.setMaxAge(7 * 24 * 60 * 60); // 7 days
@@ -63,20 +72,19 @@ public class LoginController {
         response.addCookie(userCookie);
 
         return ResponseEntity.ok(new LoginResponse(
-            true, 
-            "Login successful",
-            user.getId(),
-            user.getEmail(),
-            user.getName(),
-            user.getRole(),
-            jwtToken
-        ));
+                true,
+                "Login successful",
+                user.getId(),
+                user.getEmail(),
+                user.getName(),
+                user.getRole(),
+                jwtToken));
     }
 
     @GetMapping("/me")
     public ResponseEntity<LoginResponse> me(
-        @RequestHeader(value = "Authorization", required = false) String authorization,
-        jakarta.servlet.http.HttpServletRequest request) {
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            jakarta.servlet.http.HttpServletRequest request) {
 
         // Try Authorization header first (Bearer token)
         String token = null;
@@ -98,7 +106,7 @@ public class LoginController {
 
         if (token == null || token.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(new LoginResponse(false, "Missing token", null, null, null, null, null));
+                    .body(new LoginResponse(false, "Missing token", null, null, null, null, null));
         }
 
         String email;
@@ -108,27 +116,26 @@ public class LoginController {
             // Optionally validate the token (if your JwtService exposes such method)
             if (!jwtService.validateToken(token)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new LoginResponse(false, "Invalid token", null, null, null, null, null));
+                        .body(new LoginResponse(false, "Invalid token", null, null, null, null, null));
             }
         } catch (Exception ex) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(new LoginResponse(false, "Invalid token", null, null, null, null, null));
+                    .body(new LoginResponse(false, "Invalid token", null, null, null, null, null));
         }
 
-        User user = userRepository.findByEmail(email);
-        if (user == null) {
+        UserData userData = zohoUserService.findByEmail(email);
+        if (userData == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(new LoginResponse(false, "User not found", null, null, null, null, null));
+                    .body(new LoginResponse(false, "User not found", null, null, null, null, null));
         }
 
         return ResponseEntity.ok(new LoginResponse(
-            true,
-            "User fetched",
-            user.getId(),
-            user.getEmail(),
-            user.getName(),
-            user.getRole(),
-            token
-        ));
+                true,
+                "User fetched",
+                userData.getId(),
+                userData.getEmail(),
+                userData.getName(),
+                userData.getRole(),
+                token));
     }
 }

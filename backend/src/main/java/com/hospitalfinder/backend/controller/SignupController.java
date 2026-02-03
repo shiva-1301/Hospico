@@ -1,6 +1,5 @@
 package com.hospitalfinder.backend.controller;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,7 +11,6 @@ import com.hospitalfinder.backend.dto.LoginResponse;
 import com.hospitalfinder.backend.dto.SignupRequest;
 import com.hospitalfinder.backend.entity.Role;
 import com.hospitalfinder.backend.entity.User;
-import com.hospitalfinder.backend.repository.UserRepository;
 import com.hospitalfinder.backend.service.JwtService;
 import com.hospitalfinder.backend.service.ZohoUserService;
 import com.hospitalfinder.backend.service.ZohoUserService.UserData;
@@ -24,46 +22,34 @@ import jakarta.servlet.http.HttpServletResponse;
 @RequestMapping("/api/auth")
 public class SignupController {
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final ZohoUserService zohoUserService;
-    
-    @Value("${zoho.enabled:false}")
-    private boolean zohoEnabled;
 
-    public SignupController(UserRepository userRepository, PasswordEncoder passwordEncoder, 
-                           JwtService jwtService, ZohoUserService zohoUserService) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
+    public SignupController(PasswordEncoder passwordEncoder,
+            JwtService jwtService, ZohoUserService zohoUserService) {
         this.jwtService = jwtService;
         this.zohoUserService = zohoUserService;
     }
 
     @PostMapping("/signup")
     public ResponseEntity<LoginResponse> signup(@RequestBody SignupRequest request, HttpServletResponse response) {
-        // Use Zoho Data Store if enabled, otherwise use PostgreSQL
-        if (zohoEnabled) {
-            return signupWithZoho(request, response);
-        } else {
-            return signupWithPostgres(request, response);
-        }
+        // Use Zoho Data Store exclusively
+        return signupWithZoho(request, response);
     }
-    
+
     private ResponseEntity<LoginResponse> signupWithZoho(SignupRequest request, HttpServletResponse response) {
         if (zohoUserService.existsByEmail(request.getEmail())) {
             return ResponseEntity.badRequest()
-                .body(new LoginResponse(false, "Email already registered", null, null, null, null, null));
+                    .body(new LoginResponse(false, "Email already registered", null, null, null, null, null));
         }
 
         Role role = request.getRole() != null ? request.getRole() : Role.USER;
         UserData userData = zohoUserService.createUser(
-            request.getName(),
-            request.getEmail(),
-            request.getPhone(),
-            request.getPassword(),
-            role
-        );
+                request.getName(),
+                request.getEmail(),
+                request.getPhone(),
+                request.getPassword(),
+                role);
 
         // Generate JWT token - create temporary User entity for JWT generation
         User tempUser = new User();
@@ -71,52 +57,24 @@ public class SignupController {
         tempUser.setEmail(userData.getEmail());
         tempUser.setName(userData.getName());
         tempUser.setRole(userData.getRole());
-        
+
         String jwtToken = jwtService.generateToken(tempUser);
-        
+
         // Set cookies
         setCookies(response, jwtToken, userData.getEmail());
 
         return ResponseEntity.ok(new LoginResponse(
-            true,
-            "User registered successfully",
-            userData.getId(),
-            userData.getEmail(),
-            userData.getName(),
-            userData.getRole(),
-            jwtToken
-        ));
+                true,
+                "User registered successfully",
+                userData.getId(),
+                userData.getEmail(),
+                userData.getName(),
+                userData.getRole(),
+                jwtToken));
     }
-    
-    private ResponseEntity<LoginResponse> signupWithPostgres(SignupRequest request, HttpServletResponse response) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            return ResponseEntity.badRequest()
-                .body(new LoginResponse(false, "Email already registered", null, null, null, null, null));
-        }
 
-        User user = new User();
-        user.setName(request.getName());
-        user.setEmail(request.getEmail());
-        user.setPhone(request.getPhone());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole(request.getRole() != null ? request.getRole() : Role.USER);
+    // Postgres implementation removed
 
-        user = userRepository.save(user);
-
-        String jwtToken = jwtService.generateToken(user);
-        setCookies(response, jwtToken, user.getEmail());
-
-        return ResponseEntity.ok(new LoginResponse(
-            true,
-            "User registered successfully",
-            user.getId(),
-            user.getEmail(),
-            user.getName(),
-            user.getRole(),
-            jwtToken
-        ));
-    }
-    
     private void setCookies(HttpServletResponse response, String jwtToken, String email) {
         // Create JWT cookie
         Cookie jwtCookie = new Cookie("jwt_token", jwtToken);

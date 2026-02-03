@@ -27,9 +27,6 @@ public class ZohoConfig {
     @Value("${zoho.refresh.token}")
     private String refreshToken;
 
-    @Value("${zoho.pat.token:}")
-    private String patToken;
-
     @Value("${zoho.users.table.id}")
     private String usersTableId;
 

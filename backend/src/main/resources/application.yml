@@ -12,39 +12,6 @@ spring:
   sql:
     init:
       mode: never
-  datasource:
-    url: ${DB_URL}
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      minimum-idle: 0
-      maximum-pool-size: 2
-      connection-timeout: 10000
-      idle-timeout: 300000
-      max-lifetime: 600000
-      initialization-fail-timeout: -1
-      auto-commit: true
-      register-mbeans: false
-  jpa:
-    hibernate:
-      ddl-auto: none
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-    show-sql: false
-    open-in-view: false
-    properties:
-      hibernate:
-        format_sql: false
-        generate_statistics: false
-        temp:
-          use_jdbc_metadata_defaults: false
-        jdbc:
-          time_zone: UTC
-          batch_size: 10
-        order_updates: true
-        order_inserts: true
-        hbm2ddl:
-          auto: none
   devtools:
     restart:
       enabled: false

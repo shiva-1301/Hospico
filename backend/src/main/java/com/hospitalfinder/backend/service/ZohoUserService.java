@@ -74,6 +74,26 @@ public class ZohoUserService {
     }
 
     /**
+     * Find a user by ID
+     */
+    public UserData findById(Long id) {
+        if (!zohoEnabled) {
+            return null;
+        }
+
+        try {
+            JsonNode user = dataStoreService.findById(usersTableId, id);
+            if (user == null) {
+                return null;
+            }
+            return mapToUserData(user);
+        } catch (Exception e) {
+            log.error("Failed to find user by id: {}", id, e);
+            throw new RuntimeException("Failed to find user by id", e);
+        }
+    }
+
+    /**
      * Create a new user
      */
     public UserData createUser(String name, String email, String phone, String password, Role role) {

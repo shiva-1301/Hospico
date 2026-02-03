@@ -108,12 +108,12 @@ public class ZohoDataStoreService {
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("Authorization", "Zoho-oauthtoken " + accessToken);
+            headers.set("x-lib-environment-id", zohoConfig.getEnvId());
 
             HttpEntity<String> request = new HttpEntity<>(headers);
 
             log.debug("Querying table {}: {}", tableId, url);
-            log.info("Using PAT: {}, Auth header: {}", zohoAuthService.isUsingPat(),
-                    zohoAuthService.isUsingPat() ? "custom" : "oauth");
+            log.info("Querying table {}: {}", tableId, url);
 
             ResponseEntity<String> response = restTemplate.exchange(
                     url,
@@ -154,5 +154,139 @@ public class ZohoDataStoreService {
         }
 
         return null;
+    }
+
+    /**
+     * Update a record in a Zoho Data Store table
+     */
+    public JsonNode updateRecord(String tableId, Long rowId, Map<String, Object> data) {
+        try {
+            String url = zohoConfig.getDataStoreUrl() + "/" + tableId + "/row/" + rowId;
+            String accessToken = zohoAuthService.getAccessToken();
+
+            RestTemplate restTemplate = new RestTemplate();
+            ObjectNode requestBody = objectMapper.createObjectNode();
+            ObjectNode dataNode = objectMapper.createObjectNode();
+
+            for (Map.Entry<String, Object> entry : data.entrySet()) {
+                if (entry.getValue() instanceof String) {
+                    dataNode.put(entry.getKey(), (String) entry.getValue());
+                } else if (entry.getValue() instanceof Integer) {
+                    dataNode.put(entry.getKey(), (Integer) entry.getValue());
+                } else if (entry.getValue() instanceof Long) {
+                    dataNode.put(entry.getKey(), (Long) entry.getValue());
+                } else if (entry.getValue() instanceof Boolean) {
+                    dataNode.put(entry.getKey(), (Boolean) entry.getValue());
+                }
+            }
+
+            requestBody.set("data", dataNode);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Zoho-oauthtoken " + accessToken);
+            headers.set("x-lib-environment-id", zohoConfig.getEnvId());
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<String> request = new HttpEntity<>(requestBody.toString(), headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
+            JsonNode responseNode = objectMapper.readTree(response.getBody());
+
+            if (response.getStatusCode().is4xxClientError() || response.getStatusCode().is5xxServerError()) {
+                throw new RuntimeException("Failed to update record: " + response.getBody());
+            }
+
+            return responseNode.get("data");
+        } catch (Exception e) {
+            log.error("Failed to update record in table {}", tableId, e);
+            throw new RuntimeException("Failed to update record", e);
+        }
+    }
+
+    /**
+     * Delete a record from a Zoho Data Store table
+     */
+    public void deleteRecord(String tableId, Long rowId) {
+        try {
+            String url = zohoConfig.getDataStoreUrl() + "/" + tableId + "/row/" + rowId;
+            String accessToken = zohoAuthService.getAccessToken();
+
+            RestTemplate restTemplate = new RestTemplate();
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Zoho-oauthtoken " + accessToken);
+            headers.set("x-lib-environment-id", zohoConfig.getEnvId());
+
+            HttpEntity<String> request = new HttpEntity<>(headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.DELETE, request, String.class);
+
+            if (response.getStatusCode().is4xxClientError() || response.getStatusCode().is5xxServerError()) {
+                throw new RuntimeException("Failed to delete record: " + response.getBody());
+            }
+        } catch (Exception e) {
+            log.error("Failed to delete record from table {}", tableId, e);
+            throw new RuntimeException("Failed to delete record", e);
+        }
+    }
+
+    /**
+     * Find a record by ROWID
+     */
+    public JsonNode findById(String tableId, Long rowId) {
+        return findByField(tableId, "ROWID", String.valueOf(rowId));
+    }
+
+    /**
+     * Execute a ZCQL query
+     * 
+     * @param query The SQL-like query string (e.g. "SELECT * FROM clinics")
+     * @return Array of JSON records
+     */
+    public JsonNode executeZCQL(String query) {
+        try {
+            String url = zohoConfig.getBaseUrl() + "/project/" + zohoConfig.getProjectId() + "/zcql";
+            String accessToken = zohoAuthService.getAccessToken();
+
+            RestTemplate restTemplate = new RestTemplate();
+            ObjectNode requestBody = objectMapper.createObjectNode();
+            requestBody.put("query", query);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Zoho-oauthtoken " + accessToken);
+            headers.set("x-lib-environment-id", zohoConfig.getEnvId());
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<String> request = new HttpEntity<>(requestBody.toString(), headers);
+
+            log.debug("Executing ZCQL: {}", query);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
+
+            JsonNode responseNode = objectMapper.readTree(response.getBody());
+
+            if (response.getStatusCode().is4xxClientError() || response.getStatusCode().is5xxServerError()) {
+                throw new RuntimeException("Failed to execute ZCQL: " + response.getBody());
+            }
+
+            // ZCQL response format is slightly different usually, or keeps 'data' array
+            // standard?
+            // Catalyst ZCQL returns simple JSON array of rows usually if valid?
+            // Actually it likely returns { "data": [ ... ] } or similar structure.
+            // Let's assume it returns standard object with "data" or equivalent.
+            // Documentation says it returns array of objects inside 'rows' or just JSON
+            // array sometimes.
+            // Let's inspect the keys. But based on other implementations, likely 'status'
+            // and 'rows' or just result.
+            // I'll check response structure. For now assume standard "data" or generic
+            // parsing.
+            // Actually, safe to return the whole body or inspect.
+            // Typical response: { "data": [ { "clinics": { ... } } ] } or similar.
+            // ZCQL often namespaces columns: { "clinics": { "name": "..." } }
+
+            return responseNode; // Return full node for service to parse
+        } catch (Exception e) {
+            log.error("Failed to execute ZCQL: {}", query, e);
+            throw new RuntimeException("Failed to execute ZCQL", e);
+        }
     }
 }

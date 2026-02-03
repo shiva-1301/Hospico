@@ -11,21 +11,20 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import com.hospitalfinder.backend.entity.User;
-import com.hospitalfinder.backend.repository.UserRepository;
+import com.hospitalfinder.backend.service.ZohoUserService.UserData;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class UserDetailsServiceImpl implements UserDetailsService {
 
-    private final UserRepository userRepository;
-
-    public UserDetailsServiceImpl(UserRepository userRepository) {
-        this.userRepository = userRepository;
-    }
+    private final ZohoUserService zohoUserService;
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepository.findByEmail(username);
+        // 'username' is email in this app
+        UserData user = zohoUserService.findByEmail(username);
         if (user == null) {
             throw new UsernameNotFoundException("User not found with email: " + username);
         }
@@ -33,11 +32,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPassword(),
-                getAuthorities(user)
-        );
+                getAuthorities(user));
     }
 
-    private Collection<? extends GrantedAuthority> getAuthorities(User user) {
+    private Collection<? extends GrantedAuthority> getAuthorities(UserData user) {
         List<GrantedAuthority> authorities = new ArrayList<>();
         // Handle null role gracefully
         if (user.getRole() != null) {

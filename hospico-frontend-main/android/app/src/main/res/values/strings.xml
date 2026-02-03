@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">Hospico</string>
-    <string name="title_activity_main">Hospico</string>
-    <string name="package_name">com.hospico.app</string>
-    <string name="custom_url_scheme">com.hospico.app</string>
-</resources>
