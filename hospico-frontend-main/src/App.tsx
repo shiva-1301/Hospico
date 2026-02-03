@@ -20,7 +20,7 @@ import HospitalProfile from "./pages/HospitalProfile";
 import Profile from "./pages/Profile.tsx";
 import MyAppointments from "./pages/MyAppointments";
 import MedicalReports from "./pages/MedicalReports";
-import ChatWidget from "../features/chatbot/src/components/ChatWidget";
+import ChatWidget from "./features/chatbot/src/components/ChatWidget";
 
 import { ThemeProvider } from "./context/ThemeContext";
 
