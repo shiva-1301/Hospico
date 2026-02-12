@@ -29,6 +29,7 @@ public class DoctorController {
     private final DoctorService doctorService;
     private final ClinicService clinicService;
 
+
     @PostMapping("/doctors")
     public ResponseEntity<?> addDoctor(@RequestBody DoctorDTO doctorDTO) {
         try {
