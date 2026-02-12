@@ -68,24 +68,7 @@ public class ReviewService {
 
     public void deleteReview(Long id) {
         try {
-            // Assume row ID deletion
             dataStoreService.deleteRecord("reviews", id);
-            // Note: deleteRecord requires tableID usually, but here I passed string
-            // "reviews".
-            // My ZohoDataStoreService.deleteRecord(String tableId, Long rowId) expects
-            // tableId.
-            // If we don't know Table ID, we cannot use Row API easily.
-            // But we can use ZCQL DELETE.
-            // dataStoreService.executeZCQL("DELETE FROM reviews WHERE ROWID = '" + id +
-            // "'");
-            // ZCQL DELETE is safest.
-            // BUT ZohoDataStoreService.deleteRecord implementation uses Row API.
-            // I should have implemented deleteRecord with ZCQL or looked up table ID.
-            // Let's rely on executeZCQL for delete which I used in MedicalRecordService.
-            // Wait, did I implement ZCQL DELETE support? I implemented executeZCQL which
-            // does POST /zcql.
-            // Yes, that supports DELETE.
-            dataStoreService.executeQuery("DELETE FROM reviews WHERE ROWID = '" + id + "'");
         } catch (Exception e) {
             log.error("Failed to delete review", e);
             throw new RuntimeException("Failed to delete review", e);

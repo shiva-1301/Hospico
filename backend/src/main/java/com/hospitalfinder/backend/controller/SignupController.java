@@ -33,11 +33,10 @@ public class SignupController {
 
     @PostMapping("/signup")
     public ResponseEntity<LoginResponse> signup(@RequestBody SignupRequest request, HttpServletResponse response) {
-        // Use Zoho Data Store exclusively
-        return signupWithZoho(request, response);
+        return signupWithMongo(request, response);
     }
 
-    private ResponseEntity<LoginResponse> signupWithZoho(SignupRequest request, HttpServletResponse response) {
+    private ResponseEntity<LoginResponse> signupWithMongo(SignupRequest request, HttpServletResponse response) {
         if (userStoreService.existsByEmail(request.getEmail())) {
             return ResponseEntity.badRequest()
                     .body(new LoginResponse(false, "Email already registered", null, null, null, null, null));
