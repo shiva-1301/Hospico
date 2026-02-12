@@ -34,7 +34,6 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(originPatterns = "*")
 @RequiredArgsConstructor
 public class ChatController {
 

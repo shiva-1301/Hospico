@@ -31,7 +31,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // CORS handled by Catalyst AppSail infrastructure - disabled here to prevent duplicate headers
+                .cors(AbstractHttpConfigurer::disable)
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
@@ -59,22 +60,29 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         String origins = environment.getProperty("CORS_ALLOWED_ORIGINS", "http://localhost:5173");
+        System.out.println("🔧 Raw CORS_ALLOWED_ORIGINS from env: [" + origins + "]");
+        
         List<String> allowedOrigins = new ArrayList<>();
         for (String origin : origins.split(",")) {
             String trimmed = origin.trim();
             if (!trimmed.isEmpty() && !allowedOrigins.contains(trimmed)) {
                 allowedOrigins.add(trimmed);
+                System.out.println("✅ Added origin: " + trimmed);
+            } else {
+                System.out.println("⚠️ Skipped duplicate/empty: [" + trimmed + "]");
             }
         }
-        if (allowedOrigins.size() == 1) {
-            config.setAllowedOrigins(allowedOrigins);
-        } else if (!allowedOrigins.isEmpty()) {
-            config.setAllowedOriginPatterns(allowedOrigins);
-        }
+        
+        System.out.println("📋 Final allowed origins list: " + allowedOrigins);
+        
+        // Use setAllowedOrigins for exact match (prevents pattern wildcards)
+        config.setAllowedOrigins(allowedOrigins);
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
         config.setAllowCredentials(true);
 
+        System.out.println("🎯 CORS Configuration complete: " + allowedOrigins.size() + " origin(s)");
+        
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
