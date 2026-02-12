@@ -25,4 +25,11 @@ public class MongoSequenceService {
         DatabaseSequence counter = mongoOperations.findAndModify(query, update, options, DatabaseSequence.class);
         return counter != null ? counter.getSeq() : 1L;
     }
+
+    public void ensureSequenceAtLeast(String seqName, long minValue) {
+        Query query = new Query(Criteria.where("id").is(seqName));
+        Update update = new Update().max("seq", minValue);
+        FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true).upsert(true);
+        mongoOperations.findAndModify(query, update, options, DatabaseSequence.class);
+    }
 }

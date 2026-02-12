@@ -30,28 +30,36 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        boolean enableSpringCors = Boolean.parseBoolean(
+            environment.getProperty("ENABLE_SPRING_CORS", "false"));
+
+        if (enableSpringCors) {
+            http.cors(cors -> cors.configurationSource(corsConfigurationSource()));
+        } else {
+            // CORS handled by Catalyst AppSail infrastructure - disabled here to prevent duplicate headers
+            http.cors(AbstractHttpConfigurer::disable);
+        }
+
         http
-                // CORS handled by Catalyst AppSail infrastructure - disabled here to prevent duplicate headers
-                .cors(AbstractHttpConfigurer::disable)
-                .csrf(AbstractHttpConfigurer::disable)
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        // CORS preflight - MUST BE FIRST
-                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        // Health check endpoints
-                        .requestMatchers("/", "/api/health", "/health/**", "/actuator/**", "/actuator/health")
-                        .permitAll()
-                        // Auth endpoints
-                        .requestMatchers("/api/auth/signup", "/api/auth/login", "/api/users/me").permitAll()
-                        // Public API endpoints
-                        .requestMatchers("/api/clinics/**", "/api/specializations/**", "/api/doctors/**", "/api/appointments/**", "/api/medical-records/**", "/api/chat").permitAll()
-                        .requestMatchers("/api/requests/**").permitAll()
-                        // Documentation
-                        .requestMatchers("/error", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        // Protected endpoints
-                        .requestMatchers("/api/users/**").authenticated()
-                        .anyRequest().authenticated())
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            .csrf(AbstractHttpConfigurer::disable)
+            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                // CORS preflight - MUST BE FIRST
+                .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+                // Health check endpoints
+                .requestMatchers("/", "/api/health", "/health/**", "/actuator/**", "/actuator/health")
+                .permitAll()
+                // Auth endpoints
+                .requestMatchers("/api/auth/signup", "/api/auth/login", "/api/users/me").permitAll()
+                // Public API endpoints
+                .requestMatchers("/api/clinics/**", "/api/specializations/**", "/api/doctors/**", "/api/appointments/**", "/api/medical-records/**", "/api/chat").permitAll()
+                .requestMatchers("/api/requests/**").permitAll()
+                // Documentation
+                .requestMatchers("/error", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                // Protected endpoints
+                .requestMatchers("/api/users/**").authenticated()
+                .anyRequest().authenticated())
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -60,28 +68,18 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         String origins = environment.getProperty("CORS_ALLOWED_ORIGINS", "http://localhost:5173");
-        System.out.println("🔧 Raw CORS_ALLOWED_ORIGINS from env: [" + origins + "]");
-        
         List<String> allowedOrigins = new ArrayList<>();
         for (String origin : origins.split(",")) {
             String trimmed = origin.trim();
             if (!trimmed.isEmpty() && !allowedOrigins.contains(trimmed)) {
                 allowedOrigins.add(trimmed);
-                System.out.println("✅ Added origin: " + trimmed);
-            } else {
-                System.out.println("⚠️ Skipped duplicate/empty: [" + trimmed + "]");
             }
         }
-        
-        System.out.println("📋 Final allowed origins list: " + allowedOrigins);
-        
         // Use setAllowedOrigins for exact match (prevents pattern wildcards)
         config.setAllowedOrigins(allowedOrigins);
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
         config.setAllowCredentials(true);
-
-        System.out.println("🎯 CORS Configuration complete: " + allowedOrigins.size() + " origin(s)");
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

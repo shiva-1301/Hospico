@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 import org.bson.Document;
 import org.bson.types.Binary;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -52,8 +53,15 @@ public class MongoDataStoreService implements DataStoreService {
         if (id == null) {
             id = extractLong(doc.get("ROWID"));
         }
-        if (id == null) {
-            id = sequenceService.getNextSequence(tableName + "_id");
+        String sequenceName = tableName + "_id";
+        if (id != null) {
+            sequenceService.ensureSequenceAtLeast(sequenceName, id);
+        } else {
+            Long maxId = findMaxId(tableName);
+            if (maxId != null) {
+                sequenceService.ensureSequenceAtLeast(sequenceName, maxId);
+            }
+            id = sequenceService.getNextSequence(sequenceName);
         }
 
         doc.put("id", id);
@@ -62,6 +70,16 @@ public class MongoDataStoreService implements DataStoreService {
 
         mongoTemplate.insert(doc, tableName);
         return objectMapper.valueToTree(doc);
+    }
+
+    private Long findMaxId(String tableName) {
+        Query query = new Query().with(Sort.by(Sort.Direction.DESC, "id")).limit(1);
+        Document doc = mongoTemplate.findOne(query, Document.class, tableName);
+        if (doc == null) {
+            return null;
+        }
+        Object idValue = doc.get("id") != null ? doc.get("id") : doc.get("_id");
+        return extractLong(idValue);
     }
 
     @Override
