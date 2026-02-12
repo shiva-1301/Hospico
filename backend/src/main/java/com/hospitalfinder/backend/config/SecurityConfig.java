@@ -1,5 +1,8 @@
 package com.hospitalfinder.backend.config;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -56,11 +59,17 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         String origins = environment.getProperty("CORS_ALLOWED_ORIGINS", "http://localhost:5173");
+        List<String> allowedOrigins = new ArrayList<>();
         for (String origin : origins.split(",")) {
             String trimmed = origin.trim();
-            if (!trimmed.isEmpty()) {
-                config.addAllowedOrigin(trimmed);
+            if (!trimmed.isEmpty() && !allowedOrigins.contains(trimmed)) {
+                allowedOrigins.add(trimmed);
             }
+        }
+        if (allowedOrigins.size() == 1) {
+            config.setAllowedOrigins(allowedOrigins);
+        } else if (!allowedOrigins.isEmpty()) {
+            config.setAllowedOriginPatterns(allowedOrigins);
         }
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
