@@ -34,24 +34,24 @@ function App() {
     useEffect(() => {
       const path = location.pathname;
       const titleMap: { [key: string]: string } = {
-        '/': 'Dashboard - HospiCo',
-        '/dashboard': 'Dashboard - HospiCo',
-        '/find-hospitals': 'Find Hospitals - HospiCo',
-        '/hospitals': 'Find Hospitals - HospiCo',
-        '/emergency': 'Emergency - HospiCo',
-        '/login': 'Login - HospiCo',
-        '/signup': 'Sign Up - HospiCo',
-        '/partner-login': 'Partner Login - HospiCo',
-        '/profile': 'My Profile - HospiCo',
-        '/my-appointments': 'My Appointments - HospiCo',
-        '/resources': 'Resources - HospiCo',
+        '/': 'Dashboard - HospiiCo',
+        '/dashboard': 'Dashboard - HospiiCo',
+        '/find-hospitals': 'Find Hospitals - HospiiCo',
+        '/hospitals': 'Find Hospitals - HospiiCo',
+        '/emergency': 'Emergency - HospiiCo',
+        '/login': 'Login - HospiiCo',
+        '/signup': 'Sign Up - HospiiCo',
+        '/partner-login': 'Partner Login - HospiiCo',
+        '/profile': 'My Profile - HospiiCo',
+        '/my-appointments': 'My Appointments - HospiiCo',
+        '/resources': 'Resources - HospiiCo',
       };
 
       // dynamic routes handling
       let title = titleMap[path];
       if (!title) {
-        if (path.startsWith('/find-hospital')) title = 'Hospital Profile - HospiCo';
-        else title = 'HospiCo';
+        if (path.startsWith('/find-hospital')) title = 'Hospital Profile - HospiiCo';
+        else title = 'HospiiCo';
       }
 
       document.title = title;
