@@ -6,21 +6,24 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.hospitalfinder.backend.dto.UserData;
 import com.hospitalfinder.backend.entity.Role;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
+@ConditionalOnProperty(name = "data.store.provider", havingValue = "zoho")
 @RequiredArgsConstructor
 @Slf4j
-public class ZohoUserService {
+public class ZohoUserService implements UserStoreService {
 
-    private final ZohoDataStoreService dataStoreService;
+    private final DataStoreService dataStoreService;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${zoho.enabled:false}")
@@ -29,53 +32,57 @@ public class ZohoUserService {
     @Value("${zoho.users.table.id}")
     private String usersTableId;
 
-    @Value("${zoho.users.table.name:users}")
-    private String usersTableName;
-
     private static final DateTimeFormatter ZOHO_DATETIME_FORMAT = DateTimeFormatter.ofPattern("dd-MMM-yyyy HH:mm:ss");
 
     /**
      * Check if a user exists by email
      */
+    @Override
     public boolean existsByEmail(String email) {
         if (!zohoEnabled) {
             return false;
         }
 
         try {
-            // Use table name for ZCQL queries
-            JsonNode user = dataStoreService.findByField(usersTableName, "email", email);
-            return user != null;
+            log.info("Checking if user exists by email: {} (tableId: {})", email, usersTableId);
+            JsonNode user = dataStoreService.findByField(usersTableId, "email", email);
+            boolean exists = user != null;
+            log.info("User exists check result: {}", exists);
+            return exists;
         } catch (Exception e) {
-            log.error("Failed to check if user exists by email: {}", email, e);
-            throw new RuntimeException("Failed to check user existence", e);
+            log.error("Failed to check if user exists by email: {} (tableId: {})", email, usersTableId, e);
+            throw new RuntimeException("Failed to check user existence: " + e.getMessage(), e);
         }
     }
 
     /**
      * Find a user by email
      */
+    @Override
     public UserData findByEmail(String email) {
         if (!zohoEnabled) {
             return null;
         }
 
         try {
-            // Use table name for ZCQL queries
-            JsonNode user = dataStoreService.findByField(usersTableName, "email", email);
+            log.info("Finding user by email: {} (tableId: {})", email, usersTableId);
+            JsonNode user = dataStoreService.findByField(usersTableId, "email", email);
             if (user == null) {
+                log.info("User not found for email: {}", email);
                 return null;
             }
+            log.info("User found for email: {}", email);
             return mapToUserData(user);
         } catch (Exception e) {
-            log.error("Failed to find user by email: {}", email, e);
-            throw new RuntimeException("Failed to find user", e);
+            log.error("Failed to find user by email: {} (tableId: {})", email, usersTableId, e);
+            throw new RuntimeException("Failed to find user: " + e.getMessage(), e);
         }
     }
 
     /**
      * Find a user by ID
      */
+    @Override
     public UserData findById(Long id) {
         if (!zohoEnabled) {
             return null;
@@ -96,6 +103,7 @@ public class ZohoUserService {
     /**
      * Create a new user
      */
+    @Override
     public UserData createUser(String name, String email, String phone, String password, Role role) {
         if (!zohoEnabled) {
             throw new RuntimeException("Zoho Data Store is not enabled");
@@ -113,10 +121,15 @@ public class ZohoUserService {
 
             JsonNode response = dataStoreService.insertRecord(usersTableId, userData);
 
-            // Extract the created record from response (REST API returns wrapped data)
-            JsonNode dataNode = response.get("data");
-            if (dataNode != null && dataNode.isArray() && dataNode.size() > 0) {
-                return mapToUserData(dataNode.get(0));
+            if (response != null && response.has("data")) {
+                JsonNode dataNode = response.get("data");
+                if (dataNode != null && dataNode.isArray() && dataNode.size() > 0) {
+                    return mapToUserData(dataNode.get(0));
+                }
+            }
+
+            if (response != null && response.has("email")) {
+                return mapToUserData(response);
             }
 
             throw new RuntimeException("Failed to create user: no data returned");
@@ -124,6 +137,48 @@ public class ZohoUserService {
         } catch (Exception e) {
             log.error("Failed to create user: {}", email, e);
             throw new RuntimeException("Failed to create user", e);
+        }
+    }
+
+    @Override
+    public UserData updateUser(String email, String name, String phone, Integer age, String gender, String password) {
+        if (!zohoEnabled) {
+            throw new RuntimeException("Zoho Data Store is not enabled");
+        }
+
+        UserData existing = findByEmail(email);
+        if (existing == null) {
+            return null;
+        }
+
+        Map<String, Object> updates = new HashMap<>();
+        if (name != null) {
+            updates.put("name", name);
+        }
+        if (phone != null) {
+            updates.put("phone", phone);
+        }
+        if (age != null) {
+            updates.put("age", age);
+        }
+        if (gender != null) {
+            updates.put("gender", gender);
+        }
+        if (password != null && !password.isBlank()) {
+            updates.put("password", passwordEncoder.encode(password));
+        }
+        updates.put("updated_at", LocalDateTime.now().format(ZOHO_DATETIME_FORMAT));
+
+        if (updates.size() == 1) {
+            return existing;
+        }
+
+        try {
+            dataStoreService.updateRecord(usersTableId, existing.getId(), updates);
+            return findByEmail(email);
+        } catch (Exception e) {
+            log.error("Failed to update user: {}", email, e);
+            throw new RuntimeException("Failed to update user", e);
         }
     }
 
@@ -137,67 +192,13 @@ public class ZohoUserService {
         user.setEmail(node.get("email").asText());
         user.setPhone(node.has("phone") ? node.get("phone").asText() : null);
         user.setPassword(node.get("password").asText());
+        if (node.has("age") && !node.get("age").isNull()) {
+            user.setAge(node.get("age").asInt());
+        }
+        if (node.has("gender") && !node.get("gender").isNull()) {
+            user.setGender(node.get("gender").asText());
+        }
         user.setRole(Role.valueOf(node.get("role").asText()));
         return user;
-    }
-
-    /**
-     * Simple DTO for user data
-     */
-    public static class UserData {
-        private Long id;
-        private String name;
-        private String email;
-        private String phone;
-        private String password;
-        private Role role;
-
-        public Long getId() {
-            return id;
-        }
-
-        public void setId(Long id) {
-            this.id = id;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public void setName(String name) {
-            this.name = name;
-        }
-
-        public String getEmail() {
-            return email;
-        }
-
-        public void setEmail(String email) {
-            this.email = email;
-        }
-
-        public String getPhone() {
-            return phone;
-        }
-
-        public void setPhone(String phone) {
-            this.phone = phone;
-        }
-
-        public String getPassword() {
-            return password;
-        }
-
-        public void setPassword(String password) {
-            this.password = password;
-        }
-
-        public Role getRole() {
-            return role;
-        }
-
-        public void setRole(Role role) {
-            this.role = role;
-        }
     }
 }

@@ -24,8 +24,8 @@ interface TimeSlot {
 }
 
 interface AppointmentResponse {
-  id: number;
-  userId: number;
+  id: string;
+  userId: string;
   appointmentTime: string;
   patientName: string;
   patientAge: number;

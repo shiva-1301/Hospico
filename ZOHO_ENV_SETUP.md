@@ -14,10 +14,36 @@ After deployment completes, configure these environment variables in the Catalys
 ZOHO_PROJECT_ID=26566000000013009
 ZOHO_ENV_ID=60061261997
 ZOHO_REGION=accounts.zoho.in
-ZOHO_CLIENT_ID=1000.URGACLE5ZTT7GS958IRQZQFYPK4XJS
-ZOHO_CLIENT_SECRET=073f7fb2cebe09867014a3267e95ff4118192a92d1
-ZOHO_REFRESH_TOKEN=1000.d7d60e75bc2d2194e14220999c7c2ba8.c5e1c02ad88d1054aa00bc52afffd72d
+ZOHO_CLIENT_ID=<your_client_id>
+ZOHO_CLIENT_SECRET=<your_client_secret>
+ZOHO_REFRESH_TOKEN=<your_refresh_token>
 ```
+
+## Generate Refresh Token (Self Client)
+Use the **API Console** to create a Self Client OAuth app and generate a refresh token.
+
+### Required Scopes (based on current backend usage)
+**Data Store Row APIs**
+- `ZohoCatalyst.tables.rows.CREATE`
+- `ZohoCatalyst.tables.rows.READ`
+- `ZohoCatalyst.tables.rows.UPDATE`
+- `ZohoCatalyst.tables.rows.DELETE`
+
+**ZCQL (used by query endpoints)**
+- `ZohoCatalyst.zcql.CREATE`
+
+**Optional (only for /api/test-zoho diagnostics)**
+- `ZohoCatalyst.project.READ`
+- `ZohoCatalyst.project.environments.READ`
+
+### Steps (Self Client)
+1. Open **Catalyst API Console** → **Self Client**.
+2. Add the scopes above and generate an **authorization code**.
+3. Run the token generator script:
+  - `backend/generate_token.ps1`
+4. Paste the authorization code when prompted to get the **refresh token**.
+
+> Note: You must use a **Super Admin** or a **Collaborator** with access to this Catalyst project to generate tokens.
 
 ## Additional Settings:
 Set the active Spring profile to enable Zoho:

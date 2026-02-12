@@ -2,14 +2,15 @@ package com.hospitalfinder.backend.service;
 
 import java.util.Map;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-import org.springframework.http.HttpMethod;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,9 +21,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
+@ConditionalOnProperty(name = "data.store.provider", havingValue = "zoho")
 @RequiredArgsConstructor
 @Slf4j
-public class ZohoDataStoreService {
+public class ZohoDataStoreService implements DataStoreService {
 
     private final ZohoConfig zohoConfig;
     private final ZohoAuthService zohoAuthService;
@@ -35,6 +37,7 @@ public class ZohoDataStoreService {
      * @param data    Map of field names to values
      * @return The created record with ID
      */
+    @Override
     public JsonNode insertRecord(String tableId, Map<String, Object> data) {
         try {
             String url = zohoConfig.getDataStoreUrl() + "/" + tableId + "/row";
@@ -78,6 +81,11 @@ public class ZohoDataStoreService {
                 throw new RuntimeException("Failed to insert record: " + response.getBody());
             }
 
+            JsonNode responseDataNode = responseNode.get("data");
+            if (responseDataNode != null && responseDataNode.isArray() && responseDataNode.size() > 0) {
+                return responseDataNode.get(0);
+            }
+
             return responseNode;
         } catch (Exception e) {
             log.error("Failed to insert record into table {}", tableId, e);
@@ -89,20 +97,19 @@ public class ZohoDataStoreService {
      * Query records from a Zoho Data Store table
      * 
      * @param tableId  The ID of the table
-     * @param criteria Optional WHERE clause (e.g., "email==\"test@example.com\"")
+     * @param criteria Optional WHERE clause (ignored - fetch all for now)
      * @return Array of matching records
      */
     public JsonNode queryRecords(String tableId, String criteria) {
         try {
             String baseUrl = zohoConfig.getDataStoreUrl() + "/" + tableId + "/row";
-            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl);
-
-            if (criteria != null && !criteria.isEmpty()) {
-                builder.queryParam("filter", criteria);
-            }
-
-            String url = builder.toUriString();
             String accessToken = zohoAuthService.getAccessToken();
+
+            // Build URL with proper parameter encoding
+            String url = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                    .queryParam("max_rows", "100")
+                    .build()
+                    .toUriString();
 
             RestTemplate restTemplate = new RestTemplate();
 
@@ -112,8 +119,8 @@ public class ZohoDataStoreService {
 
             HttpEntity<String> request = new HttpEntity<>(headers);
 
-            log.debug("Querying table {}: {}", tableId, url);
             log.info("Querying table {}: {}", tableId, url);
+            log.debug("Query headers: Authorization=[REDACTED], x-lib-environment-id={}, max_rows=100", zohoConfig.getEnvId());
 
             ResponseEntity<String> response = restTemplate.exchange(
                     url,
@@ -121,7 +128,8 @@ public class ZohoDataStoreService {
                     request,
                     String.class);
 
-            log.debug("Zoho Data Store query response: {}", response.getBody());
+            log.info("Query response status: {}", response.getStatusCode());
+            log.info("Query response body: {}", response.getBody());
 
             JsonNode responseNode = objectMapper.readTree(response.getBody());
 
@@ -130,10 +138,13 @@ public class ZohoDataStoreService {
                 throw new RuntimeException("Failed to query records: " + response.getBody());
             }
 
-            return responseNode.get("data");
+            JsonNode dataNode = responseNode.get("data");
+            log.info("Extracted data node: {}", dataNode);
+            
+            return dataNode;
         } catch (Exception e) {
             log.error("Failed to query records from table {}: {}", tableId, e.getMessage(), e);
-            throw new RuntimeException("Failed to query records", e);
+            throw new RuntimeException("Failed to query records: " + e.getMessage(), e);
         }
     }
 
@@ -145,20 +156,36 @@ public class ZohoDataStoreService {
      * @param fieldValue The value to match
      * @return The first matching record, or null if not found
      */
+    @Override
     public JsonNode findByField(String tableId, String fieldName, String fieldValue) {
-        String criteria = String.format("%s==\"%s\"", fieldName, fieldValue.replace("\"", "\\\""));
-        JsonNode results = queryRecords(tableId, criteria);
-
-        if (results != null && results.isArray() && results.size() > 0) {
-            return results.get(0);
+        try {
+            log.info("Finding record by field: {} = {} in table {}", fieldName, fieldValue, tableId);
+            JsonNode results = queryRecords(tableId, null);
+            
+            if (results != null && results.isArray()) {
+                log.info("Total rows in table: {}", results.size());
+                for (int i = 0; i < results.size(); i++) {
+                    JsonNode row = results.get(i);
+                    JsonNode fieldNode = row.get(fieldName);
+                    if (fieldNode != null && fieldNode.asText().equals(fieldValue)) {
+                        log.info("Found matching record at index {}", i);
+                        return row;
+                    }
+                }
+            }
+            
+            log.info("No matching record found for {} = {}", fieldName, fieldValue);
+            return null;
+        } catch (Exception e) {
+            log.error("Error in findByField for {} = {}: {}", fieldName, fieldValue, e.getMessage(), e);
+            throw e;
         }
-
-        return null;
     }
 
     /**
      * Update a record in a Zoho Data Store table
      */
+    @Override
     public JsonNode updateRecord(String tableId, Long rowId, Map<String, Object> data) {
         try {
             String url = zohoConfig.getDataStoreUrl() + "/" + tableId + "/row/" + rowId;
@@ -206,6 +233,7 @@ public class ZohoDataStoreService {
     /**
      * Delete a record from a Zoho Data Store table
      */
+    @Override
     public void deleteRecord(String tableId, Long rowId) {
         try {
             String url = zohoConfig.getDataStoreUrl() + "/" + tableId + "/row/" + rowId;
@@ -232,6 +260,7 @@ public class ZohoDataStoreService {
     /**
      * Find a record by ROWID
      */
+    @Override
     public JsonNode findById(String tableId, Long rowId) {
         return findByField(tableId, "ROWID", String.valueOf(rowId));
     }
@@ -283,10 +312,16 @@ public class ZohoDataStoreService {
             // Typical response: { "data": [ { "clinics": { ... } } ] } or similar.
             // ZCQL often namespaces columns: { "clinics": { "name": "..." } }
 
-            return responseNode; // Return full node for service to parse
+            JsonNode dataNode = responseNode.get("data");
+            return dataNode != null ? dataNode : responseNode;
         } catch (Exception e) {
             log.error("Failed to execute ZCQL: {}", query, e);
             throw new RuntimeException("Failed to execute ZCQL", e);
         }
+    }
+
+    @Override
+    public JsonNode executeQuery(String query) {
+        return executeZCQL(query);
     }
 }

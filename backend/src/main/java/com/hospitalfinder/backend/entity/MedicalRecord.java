@@ -6,6 +6,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -22,7 +24,7 @@ public class MedicalRecord {
 
     private String category; // Diagnostics, Scanning, Prescriptions, Bills
 
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private byte[] data;
 
     private LocalDateTime uploadDate;

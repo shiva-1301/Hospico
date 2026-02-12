@@ -9,11 +9,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.hospitalfinder.backend.dto.LoginResponse;
 import com.hospitalfinder.backend.dto.SignupRequest;
+import com.hospitalfinder.backend.dto.UserData;
 import com.hospitalfinder.backend.entity.Role;
 import com.hospitalfinder.backend.entity.User;
 import com.hospitalfinder.backend.service.JwtService;
-import com.hospitalfinder.backend.service.ZohoUserService;
-import com.hospitalfinder.backend.service.ZohoUserService.UserData;
+import com.hospitalfinder.backend.service.UserStoreService;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
@@ -23,12 +23,12 @@ import jakarta.servlet.http.HttpServletResponse;
 public class SignupController {
 
     private final JwtService jwtService;
-    private final ZohoUserService zohoUserService;
+    private final UserStoreService userStoreService;
 
     public SignupController(PasswordEncoder passwordEncoder,
-            JwtService jwtService, ZohoUserService zohoUserService) {
+            JwtService jwtService, UserStoreService userStoreService) {
         this.jwtService = jwtService;
-        this.zohoUserService = zohoUserService;
+        this.userStoreService = userStoreService;
     }
 
     @PostMapping("/signup")
@@ -38,13 +38,13 @@ public class SignupController {
     }
 
     private ResponseEntity<LoginResponse> signupWithZoho(SignupRequest request, HttpServletResponse response) {
-        if (zohoUserService.existsByEmail(request.getEmail())) {
+        if (userStoreService.existsByEmail(request.getEmail())) {
             return ResponseEntity.badRequest()
                     .body(new LoginResponse(false, "Email already registered", null, null, null, null, null));
         }
 
         Role role = request.getRole() != null ? request.getRole() : Role.USER;
-        UserData userData = zohoUserService.createUser(
+        UserData userData = userStoreService.createUser(
                 request.getName(),
                 request.getEmail(),
                 request.getPhone(),

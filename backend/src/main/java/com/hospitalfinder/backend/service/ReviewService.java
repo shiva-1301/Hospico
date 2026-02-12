@@ -2,7 +2,6 @@ package com.hospitalfinder.backend.service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ReviewService {
 
-    private final ZohoDataStoreService dataStoreService;
+    private final DataStoreService dataStoreService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public Review saveReview(Review review) {
@@ -29,7 +28,7 @@ public class ReviewService {
         if (review.getUserId() != null && review.getDoctorId() != null) {
             String checkQuery = "SELECT ROWID FROM reviews WHERE user_id = '" + review.getUserId()
                     + "' AND doctor_id = '" + review.getDoctorId() + "'";
-            JsonNode result = dataStoreService.executeZCQL(checkQuery);
+                JsonNode result = dataStoreService.executeQuery(checkQuery);
             if (result != null && result.isArray() && result.size() > 0) {
                 throw new RuntimeException(
                         "You have already reviewed this doctor. Please delete your old review to submit a new one.");
@@ -86,7 +85,7 @@ public class ReviewService {
             // Wait, did I implement ZCQL DELETE support? I implemented executeZCQL which
             // does POST /zcql.
             // Yes, that supports DELETE.
-            dataStoreService.executeZCQL("DELETE FROM reviews WHERE ROWID = '" + id + "'");
+            dataStoreService.executeQuery("DELETE FROM reviews WHERE ROWID = '" + id + "'");
         } catch (Exception e) {
             log.error("Failed to delete review", e);
             throw new RuntimeException("Failed to delete review", e);
@@ -95,7 +94,7 @@ public class ReviewService {
 
     private List<Review> fetchReviews(String query) {
         try {
-            JsonNode result = dataStoreService.executeZCQL(query);
+            JsonNode result = dataStoreService.executeQuery(query);
             List<Review> reviews = new ArrayList<>();
             if (result != null && result.isArray()) {
                 for (JsonNode node : result) {

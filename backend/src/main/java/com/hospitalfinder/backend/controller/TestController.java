@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,15 +12,16 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.hospitalfinder.backend.config.ZohoConfig;
 import com.hospitalfinder.backend.service.ZohoAuthService;
 import com.hospitalfinder.backend.service.ZohoDataStoreService;
-import com.hospitalfinder.backend.config.ZohoConfig;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api/test-zoho")
+@ConditionalOnProperty(name = "data.store.provider", havingValue = "zoho")
 @RequiredArgsConstructor
 @Slf4j
 public class TestController {

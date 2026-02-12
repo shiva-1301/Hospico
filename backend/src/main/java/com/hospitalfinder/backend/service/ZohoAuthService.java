@@ -2,6 +2,7 @@ package com.hospitalfinder.backend.service;
 
 import java.time.Instant;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -19,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
+@ConditionalOnProperty(name = "data.store.provider", havingValue = "zoho")
 @RequiredArgsConstructor
 @Slf4j
 public class ZohoAuthService {

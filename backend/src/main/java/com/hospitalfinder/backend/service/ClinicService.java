@@ -2,6 +2,7 @@ package com.hospitalfinder.backend.service;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -26,7 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ClinicService {
 
-    private final ZohoDataStoreService dataStoreService;
+    private final DataStoreService dataStoreService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public List<ClinicSummaryDTO> getFilteredClinics(String city, List<String> specializations, String search,
@@ -181,7 +182,7 @@ public class ClinicService {
     // Helper to fetch clinics
     private List<Clinic> fetchClinics(String query) {
         try {
-            JsonNode result = dataStoreService.executeZCQL(query);
+            JsonNode result = dataStoreService.executeQuery(query);
             List<Clinic> clinics = new ArrayList<>();
             if (result != null && result.isArray()) {
                 for (JsonNode node : result) {
@@ -205,7 +206,7 @@ public class ClinicService {
             return;
 
         try {
-            JsonNode specsResult = dataStoreService.executeZCQL("SELECT * FROM specializations");
+            JsonNode specsResult = dataStoreService.executeQuery("SELECT * FROM specializations");
             List<Specialization> allSpecs = new ArrayList<>();
             if (specsResult != null && specsResult.isArray()) {
                 for (JsonNode node : specsResult) {
@@ -216,7 +217,7 @@ public class ClinicService {
             Map<Long, Specialization> specMap = allSpecs.stream()
                     .collect(Collectors.toMap(Specialization::getId, s -> s));
 
-            JsonNode mappingResult = dataStoreService.executeZCQL("SELECT * FROM clinic_specializations");
+            JsonNode mappingResult = dataStoreService.executeQuery("SELECT * FROM clinic_specializations");
             if (mappingResult != null && mappingResult.isArray()) {
                 for (JsonNode node : mappingResult) {
                     JsonNode data = node.has("clinic_specializations") ? node.get("clinic_specializations") : node;
@@ -237,7 +238,126 @@ public class ClinicService {
     }
 
     public ClinicResponseDTO createClinic(ClinicRequestDTO request) {
-        throw new UnsupportedOperationException("Create clinic not fully implemented in migration");
+        Map<String, Object> values = new HashMap<>();
+        if (request.getName() != null) {
+            values.put("name", request.getName());
+        }
+        if (request.getAddress() != null) {
+            values.put("address", request.getAddress());
+        }
+        if (request.getCity() != null) {
+            values.put("city", request.getCity());
+        }
+        if (request.getLatitude() != null) {
+            values.put("latitude", request.getLatitude());
+        }
+        if (request.getLongitude() != null) {
+            values.put("longitude", request.getLongitude());
+        }
+        if (request.getPhone() != null) {
+            values.put("phone", request.getPhone());
+        }
+        if (request.getWebsite() != null) {
+            values.put("website", request.getWebsite());
+        }
+        if (request.getTimings() != null) {
+            values.put("timings", request.getTimings());
+        }
+        if (request.getRating() != null) {
+            values.put("rating", request.getRating());
+        }
+        if (request.getReviews() != null) {
+            values.put("reviews", request.getReviews());
+        }
+        if (request.getImageUrl() != null) {
+            values.put("imageUrl", request.getImageUrl());
+        }
+
+        JsonNode createdNode = dataStoreService.insertRecord("clinics", values);
+        Clinic clinic = mapToClinic(createdNode);
+        Long clinicId = clinic.getId();
+        if (clinicId == null) {
+            clinicId = extractId(createdNode);
+            clinic.setId(clinicId);
+        }
+
+        List<Long> specIds = request.getSpecializationIds();
+        List<String> specNames = request.getSpecializations();
+
+        if ((specIds == null || specIds.isEmpty()) && specNames != null && !specNames.isEmpty()) {
+            specIds = new ArrayList<>();
+            Map<String, Long> nameToId = loadSpecializationNameMap();
+            for (String name : specNames) {
+                if (name == null || name.isBlank()) {
+                    continue;
+                }
+                Long id = nameToId.get(name.toLowerCase());
+                if (id == null) {
+                    id = createSpecialization(name);
+                    if (id != null) {
+                        nameToId.put(name.toLowerCase(), id);
+                    }
+                }
+                if (id != null) {
+                    specIds.add(id);
+                }
+            }
+        }
+
+        if (clinicId != null && specIds != null && !specIds.isEmpty()) {
+            for (Long specId : specIds) {
+                if (specId == null) {
+                    continue;
+                }
+                Map<String, Object> mapping = new HashMap<>();
+                mapping.put("clinic_id", clinicId);
+                mapping.put("specializations_id", specId);
+                dataStoreService.insertRecord("clinic_specializations", mapping);
+            }
+        }
+
+        populateSpecializations(Collections.singletonList(clinic));
+        return new ClinicResponseDTO(clinic);
+    }
+
+    private Map<String, Long> loadSpecializationNameMap() {
+        Map<String, Long> map = new HashMap<>();
+        JsonNode specsResult = dataStoreService.executeQuery("SELECT * FROM specializations");
+        if (specsResult != null && specsResult.isArray()) {
+            for (JsonNode node : specsResult) {
+                JsonNode data = node.has("specializations") ? node.get("specializations") : node;
+                Specialization spec = objectMapper.convertValue(data, Specialization.class);
+                if (spec.getSpecialization() != null && spec.getId() != null) {
+                    map.put(spec.getSpecialization().toLowerCase(), spec.getId());
+                } else if (spec.getSpecialization() != null) {
+                    Long id = extractId(data);
+                    if (id != null) {
+                        map.put(spec.getSpecialization().toLowerCase(), id);
+                    }
+                }
+            }
+        }
+        return map;
+    }
+
+    private Long createSpecialization(String name) {
+        Map<String, Object> values = new HashMap<>();
+        values.put("specialization", name);
+        JsonNode created = dataStoreService.insertRecord("specializations", values);
+        return extractId(created);
+    }
+
+    private Long extractId(JsonNode node) {
+        if (node == null) {
+            return null;
+        }
+        if (node.has("id")) {
+            return node.get("id").asLong();
+        }
+        if (node.has("ROWID")) {
+            return node.get("ROWID").asLong();
+        }
+        return null;
     }
 
     public ClinicResponseDTO getClinicById(Long id) {
@@ -250,7 +370,7 @@ public class ClinicService {
 
     public void deleteClinic(Long id) {
         try {
-            dataStoreService.executeZCQL("DELETE FROM clinics WHERE ROWID = '" + id + "'");
+            dataStoreService.executeQuery("DELETE FROM clinics WHERE ROWID = '" + id + "'");
         } catch (Exception e) {
             log.error("Failed to delete clinic", e);
             throw new RuntimeException("Failed to delete clinic", e);
@@ -260,7 +380,7 @@ public class ClinicService {
     private List<Doctor> fetchDoctors(Long clinicId) {
         try {
             String query = "SELECT * FROM doctors WHERE clinic_id = '" + clinicId + "'";
-            JsonNode result = dataStoreService.executeZCQL(query);
+            JsonNode result = dataStoreService.executeQuery(query);
             List<Doctor> doctors = new ArrayList<>();
             if (result != null && result.isArray()) {
                 for (JsonNode node : result) {

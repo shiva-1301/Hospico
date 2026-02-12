@@ -1,21 +1,21 @@
 package com.hospitalfinder.backend.dto;
 
-import com.hospitalfinder.backend.entity.Appointment;
-
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter
 @Setter
+@NoArgsConstructor
 public class AppointmentResponseDTO {
 
-    private Long id;
-    private Long clinicId;
+    private String id;
+    private String clinicId;
     private String clinicName;
-    private Long doctorId;
+    private String doctorId;
     private String doctorName;
     private String doctorSpecialization;
-    private Long userId;
+    private String userId;
     private String userName;
     private String appointmentTime;
     private String status;
@@ -27,23 +27,4 @@ public class AppointmentResponseDTO {
     private String patientPhone;
     private String reason;
 
-    public AppointmentResponseDTO(Appointment appointment) {
-        this.id = appointment.getId();
-        this.clinicId = appointment.getClinic().getId();
-        this.clinicName = appointment.getClinic().getName();
-        this.doctorId = appointment.getDoctor().getId();
-        this.doctorName = appointment.getDoctor().getName();
-        this.doctorSpecialization = appointment.getDoctor().getSpecialization();
-        this.userId = appointment.getUser().getId();
-        this.userName = appointment.getUser().getName();
-        this.appointmentTime = appointment.getAppointmentTime().toString();
-        this.status = appointment.getStatus();
-
-        this.patientName = appointment.getPatientName();
-        this.patientAge = appointment.getPatientAge();
-        this.patientGender = appointment.getPatientGender();
-        this.patientEmail = appointment.getPatientEmail();
-        this.patientPhone = appointment.getPatientPhone();
-        this.reason = appointment.getReason();
-    }
 }

@@ -21,14 +21,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class DoctorService {
 
-    private final ZohoDataStoreService dataStoreService;
+    private final DataStoreService dataStoreService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public Doctor findById(Long id) {
         try {
             // Check if ID is likely a Zoho Row ID (Long)
             String query = "SELECT * FROM doctors WHERE ROWID = '" + id + "'";
-            JsonNode result = dataStoreService.executeZCQL(query);
+            JsonNode result = dataStoreService.executeQuery(query);
 
             if (result != null && result.isArray() && result.size() > 0) {
                 JsonNode node = result.get(0);
@@ -79,7 +79,7 @@ public class DoctorService {
 
     public void deleteDoctor(Long id) {
         try {
-            dataStoreService.executeZCQL("DELETE FROM doctors WHERE ROWID = '" + id + "'");
+            dataStoreService.executeQuery("DELETE FROM doctors WHERE ROWID = '" + id + "'");
         } catch (Exception e) {
             log.error("Failed to delete doctor", e);
             throw new RuntimeException("Failed to delete doctor", e);
@@ -88,7 +88,7 @@ public class DoctorService {
 
     private List<Doctor> fetchDoctors(String query) {
         try {
-            JsonNode result = dataStoreService.executeZCQL(query);
+            JsonNode result = dataStoreService.executeQuery(query);
             List<Doctor> doctors = new ArrayList<>();
             if (result != null && result.isArray()) {
                 for (JsonNode node : result) {

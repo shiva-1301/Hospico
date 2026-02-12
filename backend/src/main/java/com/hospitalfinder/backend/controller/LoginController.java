@@ -12,10 +12,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.hospitalfinder.backend.dto.LoginRequest;
 import com.hospitalfinder.backend.dto.LoginResponse;
+import com.hospitalfinder.backend.dto.UserData;
 import com.hospitalfinder.backend.entity.User;
 import com.hospitalfinder.backend.service.JwtService;
-import com.hospitalfinder.backend.service.ZohoUserService;
-import com.hospitalfinder.backend.service.ZohoUserService.UserData;
+import com.hospitalfinder.backend.service.UserStoreService;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
@@ -24,19 +24,19 @@ import jakarta.servlet.http.HttpServletResponse;
 @RequestMapping("/api/auth")
 public class LoginController {
 
-    private final ZohoUserService zohoUserService;
+    private final UserStoreService userStoreService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
-    public LoginController(ZohoUserService zohoUserService, PasswordEncoder passwordEncoder, JwtService jwtService) {
-        this.zohoUserService = zohoUserService;
+    public LoginController(UserStoreService userStoreService, PasswordEncoder passwordEncoder, JwtService jwtService) {
+        this.userStoreService = userStoreService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
     }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request, HttpServletResponse response) {
-        UserData userData = zohoUserService.findByEmail(request.getEmail());
+        UserData userData = userStoreService.findByEmail(request.getEmail());
 
         if (userData == null || !passwordEncoder.matches(request.getPassword(), userData.getPassword())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -123,7 +123,7 @@ public class LoginController {
                     .body(new LoginResponse(false, "Invalid token", null, null, null, null, null));
         }
 
-        UserData userData = zohoUserService.findByEmail(email);
+        UserData userData = userStoreService.findByEmail(email);
         if (userData == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new LoginResponse(false, "User not found", null, null, null, null, null));

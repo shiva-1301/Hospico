@@ -57,7 +57,7 @@ public class AppointmentController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateAppointment(@PathVariable Long id, @RequestBody AppointmentRequestDTO dto) {
+    public ResponseEntity<?> updateAppointment(@PathVariable String id, @RequestBody AppointmentRequestDTO dto) {
         // Migration Note: Update logic temporarily disabled or needs Service
         // implementation
         // For now returning generic response to allow compilation
@@ -65,7 +65,7 @@ public class AppointmentController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteAppointment(@PathVariable Long id) {
+    public ResponseEntity<?> deleteAppointment(@PathVariable String id) {
         appointmentService.deleteAppointment(id);
         return ResponseEntity.ok("Appointment deleted successfully");
     }

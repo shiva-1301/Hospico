@@ -43,10 +43,11 @@ public class RequestLoggingInterceptor implements HandlerInterceptor {
                 requestInfo.put("queryParams", queryString);
             }
             
-            // Skip body reading for auth endpoints to avoid "getReader() already called" error
+            // Skip body reading for auth, user, clinic, and doctor endpoints to avoid "getReader() already called" error
             // Add request body for POST/PUT/PATCH (except auth endpoints)
             if (("POST".equals(request.getMethod()) || "PUT".equals(request.getMethod()) || "PATCH".equals(request.getMethod()))
-                && !path.startsWith("/api/auth/")) {
+                && !path.startsWith("/api/auth/") && !path.startsWith("/api/users/")
+                && !path.startsWith("/api/clinics") && !path.startsWith("/api/doctors")) {
                 try {
                     String body = request.getReader().lines().collect(Collectors.joining(System.lineSeparator()));
                     if (body != null && !body.isEmpty() && body.length() < 500) {

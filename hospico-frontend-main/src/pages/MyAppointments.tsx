@@ -6,7 +6,7 @@ import { apiRequest } from "../api";
 import ReviewModal from "../components/ReviewModal";
 
 type Appointment = {
-  id: number;
+  id: string;
   appointmentTime: string;
   status: string;
   patientName: string;
@@ -14,9 +14,9 @@ type Appointment = {
   patientGender: string;
   patientEmail?: string;
   patientPhone?: string;
-  clinicId: number;
+  clinicId: string;
   clinicName: string;
-  doctorId: number;
+  doctorId: string;
   doctorName: string;
   doctorSpecialization?: string;
   userName: string;
@@ -28,7 +28,7 @@ export default function MyAppointments() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [cancellingId, setCancellingId] = useState<number | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [reviewModal, setReviewModal] = useState<{ isOpen: boolean; appointment: Appointment | null }>({ isOpen: false, appointment: null });
 
   const handleReviewSubmit = async (rating: number, comment: string) => {
@@ -39,16 +39,16 @@ export default function MyAppointments() {
         rating,
         comment,
         userId: user?.id,
-        hospitalId: reviewModal.appointment.clinicId,
-        doctorId: reviewModal.appointment.doctorId,
+        hospitalId: Number(reviewModal.appointment.clinicId),
+        doctorId: Number(reviewModal.appointment.doctorId),
       });
 
       alert("Review submitted successfully!");
       fetchAppointments();
       setReviewModal({ isOpen: false, appointment: null });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      const errorMessage = error.message || "Failed to submit review";
+      const errorMessage = error instanceof Error ? error.message : "Failed to submit review";
       alert(errorMessage);
     }
   };
@@ -67,16 +67,22 @@ export default function MyAppointments() {
     try {
       setLoading(true);
       setError(null);
-      // Fetch both appointments and user reviews
-      const [appointmentsData, reviewsData] = await Promise.all([
-        apiRequest<Appointment[]>(`/api/appointments/user/${user?.id}`, "GET"),
-        apiRequest<Review[]>(`/api/reviews/user/${user?.id}`, "GET")
-      ]);
-
+      
+      // Fetch appointments
+      const appointmentsData = await apiRequest<Appointment[]>(`/api/appointments/user/${user?.id}`, "GET");
       const sortedAppointments = appointmentsData.sort((a, b) => new Date(a.appointmentTime).getTime() - new Date(b.appointmentTime).getTime());
       setAppointments(sortedAppointments);
-      setUserReviews(reviewsData);
+      
+      // Try to fetch reviews, but don't fail if it doesn't work
+      try {
+        const reviewsData = await apiRequest<Review[]>(`/api/reviews/user/${user?.id}`, "GET");
+        setUserReviews(reviewsData);
+      } catch (reviewErr) {
+        console.warn("Could not fetch reviews:", reviewErr);
+        setUserReviews([]);
+      }
     } catch (err) {
+      console.error("Error fetching appointments:", err);
       setError((err as Error)?.message || "Failed to load appointments");
     } finally {
       setLoading(false);
@@ -90,7 +96,7 @@ export default function MyAppointments() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const handleCancelAppointment = async (appointmentId: number) => {
+  const handleCancelAppointment = async (appointmentId: string) => {
     if (!window.confirm("Are you sure you want to cancel this appointment?")) return;
     try {
       setCancellingId(appointmentId);
@@ -329,7 +335,7 @@ export default function MyAppointments() {
                       Since we are mapping, we can check easily if we have the list of reviews. */
                           }
                           {(() => {
-                            const hasReviewed = userReviews.some(r => r.doctorId === appointment.doctorId);
+                            const hasReviewed = userReviews.some(r => r.doctorId === Number(appointment.doctorId));
                             return (
                               <button
                                 className={`px-4 py-2 rounded-lg text-white text-sm font-semibold transition-colors shadow-sm ${hasReviewed

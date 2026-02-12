@@ -1,11 +1,13 @@
 package com.hospitalfinder.backend.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
 
 import lombok.Getter;
 
 @Configuration
+@ConditionalOnProperty(name = "data.store.provider", havingValue = "zoho")
 @Getter
 public class ZohoConfig {
 

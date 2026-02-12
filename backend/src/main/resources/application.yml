@@ -3,6 +3,10 @@ server:
   address: 0.0.0.0
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 25MB
   main:
     lazy-initialization: true
     banner-mode: off
@@ -17,6 +21,14 @@ spring:
       enabled: false
   jmx:
     enabled: false
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/HospiiCo}
+      database: ${MONGODB_DB:HospiiCo}
+
+data:
+  store:
+    provider: ${DATA_STORE_PROVIDER:mongo}
 
 management:
   endpoints:

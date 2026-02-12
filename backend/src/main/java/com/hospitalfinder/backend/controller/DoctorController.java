@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hospitalfinder.backend.dto.ClinicResponseDTO;
+import com.hospitalfinder.backend.dto.DoctorDTO;
 import com.hospitalfinder.backend.entity.Clinic;
 import com.hospitalfinder.backend.entity.Doctor;
 import com.hospitalfinder.backend.service.ClinicService;
@@ -27,6 +28,31 @@ public class DoctorController {
 
     private final DoctorService doctorService;
     private final ClinicService clinicService;
+
+    @PostMapping("/doctors")
+    public ResponseEntity<?> addDoctor(@RequestBody DoctorDTO doctorDTO) {
+        try {
+            Doctor doctor = new Doctor();
+            doctor.setName(doctorDTO.getName());
+            doctor.setQualifications(doctorDTO.getQualifications());
+            doctor.setSpecialization(doctorDTO.getSpecialization());
+            doctor.setExperience(doctorDTO.getExperience());
+            doctor.setBiography(doctorDTO.getBiography());
+            doctor.setFees(doctorDTO.getFees());
+            doctor.setImageUrl(doctorDTO.getImageUrl());
+            
+            if (doctorDTO.getClinicId() != null) {
+                Clinic clinic = new Clinic();
+                clinic.setId(doctorDTO.getClinicId());
+                doctor.setClinic(clinic);
+            }
+
+            Doctor savedDoctor = doctorService.save(doctor);
+            return ResponseEntity.ok(savedDoctor);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Failed to add doctor: " + e.getMessage());
+        }
+    }
 
     @PostMapping("/clinics/{clinicId}/doctors")
     public ResponseEntity<?> addDoctorToClinic(@PathVariable Long clinicId, @RequestBody Doctor doctor) {
