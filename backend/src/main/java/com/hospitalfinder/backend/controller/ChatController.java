@@ -1,5 +1,8 @@
 package com.hospitalfinder.backend.controller;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -7,6 +10,9 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -26,9 +32,15 @@ import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hospitalfinder.backend.dto.ChatActionRequest;
 import com.hospitalfinder.backend.dto.ChatRequest;
+import com.hospitalfinder.backend.dto.ClinicResponseDTO;
 import com.hospitalfinder.backend.dto.ClinicSummaryDTO;
+import com.hospitalfinder.backend.entity.ChatSession;
+import com.hospitalfinder.backend.entity.Doctor;
+import com.hospitalfinder.backend.repository.ChatSessionRepository;
 import com.hospitalfinder.backend.service.ClinicService;
+import com.hospitalfinder.backend.service.DoctorService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -41,6 +53,8 @@ public class ChatController {
     private String apiKey;
 
     private final ClinicService clinicService;
+    private final ChatSessionRepository chatSessionRepository;
+    private final DoctorService doctorService;
 
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -74,17 +88,19 @@ public class ChatController {
             "gynecology", "ent", "general medicine", "surgery", "ophthalmology",
             "pulmonology", "oncology");
 
-    // Symptom analysis prompt (only injected when symptoms detected)
-    private static final String SYMPTOM_ANALYSIS_PROMPT = """
+        // Symptom analysis prompt (only injected when symptoms detected)
+        private static final String SYMPTOM_ANALYSIS_PROMPT = """
             IMPORTANT: The user is describing health symptoms. You must respond ONLY with valid JSON in this exact format:
-            {"type":"specialization_match","symptom":"<brief symptom summary>","inferred_issue":"<simple non-diagnostic explanation>","specializations":["<spec1>","<spec2>"],"confidence":"low|medium|high","disclaimer":"This is not a medical diagnosis. Please consult a qualified doctor."}
+            {"type":"specialization_match","symptom":"<brief symptom summary>","inferred_issue":"<simple non-diagnostic explanation>","common_causes":["<cause1>","<cause2>","<cause3>"],"specializations":["<spec1>","<spec2>"],"confidence":"low|medium|high","disclaimer":"This is not a medical diagnosis. Please consult a qualified doctor."}
 
             RULES:
+            - symptom: 2-5 word summary (e.g., "Slight headache", "Ear pain")
+            - inferred_issue: 2-3 words max, non-diagnostic (e.g., "Tension headache")
+            - common_causes: 3 SPECIFIC causes for THIS symptom
             - Choose 1-3 specializations ONLY from: Cardiology, Orthopedics, Pediatrics, Dermatology, Neurology, Gynecology, ENT, General Medicine, Surgery, Ophthalmology, Pulmonology, Oncology
             - If unsure, include "General Medicine"
             - Do NOT diagnose or prescribe
             - Use simple, non-alarming language
-            - Keep "inferred_issue" brief and general
             - Respond ONLY with the JSON, nothing else
             """;
 
@@ -111,16 +127,49 @@ public class ChatController {
                 if (matcher.find()) {
                     String placeName = matcher.group(1).trim();
                     System.out.println("Hospital search detected for place: " + placeName);
+                    if (placeName.equalsIgnoreCase("me") || placeName.equalsIgnoreCase("my location")) {
+                        if (request.getLatitude() != null && request.getLongitude() != null) {
+                            return handleNearbySearch(request.getLatitude(), request.getLongitude());
+                        }
+                        return returnAsNormalText(
+                                "I need access to your location to find hospitals near you. Please enable location services or specify a city name (e.g., 'Hospital in Hyderabad').");
+                    }
                     return handleHospitalCitySearch(placeName);
                 }
             }
         }
 
+        String latestMessage = messages != null && !messages.isEmpty()
+            ? messages.get(messages.size() - 1).getContent()
+            : "";
+
+        String lowerMessage = latestMessage == null ? "" : latestMessage.toLowerCase();
+        boolean wantsHospitals = lowerMessage.contains("show") || lowerMessage.contains("hospitals")
+            || lowerMessage.contains("nearby") || lowerMessage.contains("find hospital");
+        
+        boolean wantsBooking = lowerMessage.contains("book") && 
+            (lowerMessage.contains("appointment") || lowerMessage.contains("doctor") || lowerMessage.contains("visit"));
+
+        if (wantsBooking) {
+            return returnAsNormalText(
+                "📅 Appointment booking feature will be available soon!\n\n" +
+                "For now, you can:\n" +
+                "→ Find nearby hospitals\n" +
+                "→ View doctor information\n" +
+                "→ Contact hospitals directly\n\n" +
+                "Is there anything else I can help you with?"
+            );
+        }
+
+        if (wantsHospitals) {
+            ChatSession session = resolveSession(request.getSessionId());
+            if (session != null && session.getSpecialization() != null) {
+            return showHospitalsFromSession(session, request.getLatitude(), request.getLongitude());
+            }
+        }
+
         // Check if message contains symptom keywords
-        boolean containsSymptoms = containsSymptomKeywords(
-                messages != null && !messages.isEmpty()
-                        ? messages.get(messages.size() - 1).getContent()
-                        : "");
+        boolean containsSymptoms = containsSymptomKeywords(latestMessage);
 
         // Proceed with AI chat
         String url = "https://api.groq.com/openai/v1/chat/completions";
@@ -220,6 +269,121 @@ public class ChatController {
         }
     }
 
+    /**
+     * Handle step-by-step actions from chatbot (hospital and doctor selection)
+     */
+    @PostMapping("/chat/action")
+    public ResponseEntity<?> handleChatAction(@RequestBody ChatActionRequest request) {
+        try {
+            System.out.println("Chat action received: " + request.getAction() + " with value: " + request.getValue());
+
+            ChatSession session = chatSessionRepository.findBySessionId(request.getSessionId())
+                    .orElseGet(() -> {
+                        ChatSession newSession = new ChatSession();
+                        String sessionId = request.getSessionId() != null && !request.getSessionId().isBlank()
+                                ? request.getSessionId()
+                                : UUID.randomUUID().toString();
+                        newSession.setSessionId(sessionId);
+                        newSession.setCreatedAt(LocalDateTime.now());
+                        newSession.setExpiresAt(LocalDateTime.now().plusMinutes(30));
+                        newSession.setCurrentStep("symptom_classification");
+                        return newSession;
+                    });
+
+            switch (request.getAction()) {
+                case "select_hospital":
+                    return handleHospitalSelection(session, request.getValue());
+                case "select_doctor":
+                    return handleDoctorSelection(session, request.getValue());
+                default:
+                    return ResponseEntity.badRequest().body(
+                            Collections.singletonMap("error", "Unknown action: " + request.getAction()));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(
+                    Collections.singletonMap("error", "Failed to process action: " + e.getMessage()));
+        }
+    }
+
+    private ResponseEntity<?> handleHospitalSelection(ChatSession session, String clinicId) {
+        Long clinicIdLong;
+        try {
+            clinicIdLong = Long.parseLong(clinicId);
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Invalid hospital id"));
+        }
+
+        ClinicResponseDTO clinic = clinicService.getClinicById(clinicIdLong);
+
+        session.setClinicId(String.valueOf(clinicIdLong));
+        session.setClinicName(clinic.getName());
+        session.setCurrentStep("doctor_selection");
+        session.setUpdatedAt(LocalDateTime.now());
+        chatSessionRepository.save(session);
+
+        List<Doctor> doctors;
+        if (session.getSpecialization() != null && !session.getSpecialization().isBlank()) {
+            doctors = doctorService.findByClinicIdAndSpecialization(clinicIdLong, session.getSpecialization());
+        } else {
+            doctors = doctorService.findByClinicId(clinicIdLong);
+        }
+
+        List<Map<String, Object>> doctorList = new ArrayList<>();
+        for (Doctor doctor : doctors) {
+            Map<String, Object> doctorInfo = new HashMap<>();
+            doctorInfo.put("id", doctor.getId());
+            doctorInfo.put("name", doctor.getName());
+            doctorInfo.put("specialization", doctor.getSpecialization());
+            doctorInfo.put("qualifications", doctor.getQualifications());
+            doctorInfo.put("experience", doctor.getExperience());
+            doctorInfo.put("imageUrl", doctor.getImageUrl() != null ? doctor.getImageUrl() : "");
+            doctorList.add(doctorInfo);
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("step", "doctor_selection");
+        response.put("message", "Great! Please select a doctor from " + clinic.getName());
+        response.put("doctors", doctorList);
+        response.put("sessionId", session.getSessionId());
+        return ResponseEntity.ok(response);
+    }
+
+    private ResponseEntity<?> handleDoctorSelection(ChatSession session, String doctorId) {
+        Long doctorIdLong;
+        try {
+            doctorIdLong = Long.parseLong(doctorId);
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Invalid doctor id"));
+        }
+
+        Doctor doctor = doctorService.findById(doctorIdLong);
+        if (doctor == null) {
+            return ResponseEntity.badRequest().body(Collections.singletonMap("error", "Doctor not found"));
+        }
+
+        session.setDoctorId(String.valueOf(doctorIdLong));
+        session.setDoctorName(doctor.getName());
+        session.setCurrentStep("doctor_selected");
+        session.setUpdatedAt(LocalDateTime.now());
+        chatSessionRepository.save(session);
+
+        Map<String, Object> doctorDetails = new HashMap<>();
+        doctorDetails.put("id", doctor.getId());
+        doctorDetails.put("name", doctor.getName());
+        doctorDetails.put("specialization", doctor.getSpecialization());
+        doctorDetails.put("qualifications", doctor.getQualifications());
+        doctorDetails.put("experience", doctor.getExperience());
+        doctorDetails.put("imageUrl", doctor.getImageUrl() != null ? doctor.getImageUrl() : "");
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("step", "doctor_selected");
+        response.put("message", "Here is Dr. " + doctor.getName() + "'s information. You can contact the hospital directly to book an appointment.");
+        response.put("doctor", doctorDetails);
+        response.put("sessionId", session.getSessionId());
+        return ResponseEntity.ok(response);
+    }
+
     private boolean containsSymptomKeywords(String message) {
         if (message == null || message.isEmpty()) {
             return false;
@@ -284,8 +448,19 @@ public class ChatController {
                 hospitalList.add(hospital);
             }
 
+            // Create session to persist symptom data
+            ChatSession session = new ChatSession();
+            session.setSessionId(UUID.randomUUID().toString());
+            session.setSymptom((String) parsed.get("symptom"));
+            session.setSpecialization(normalizedSpecs.get(0));
+            session.setCurrentStep("symptom_explanation");
+            session.setCreatedAt(LocalDateTime.now());
+            session.setUpdatedAt(LocalDateTime.now());
+            session.setExpiresAt(LocalDateTime.now().plusMinutes(30));
+            chatSessionRepository.save(session);
+
             Map<String, Object> result = new HashMap<>();
-            result.put("type", "specialization_match");
+                result.put("type", "symptom_explanation");
             result.put("symptom", parsed.get("symptom"));
             result.put("inferredIssue", parsed.get("inferred_issue"));
             result.put("specializations", specializations);
@@ -293,8 +468,11 @@ public class ChatController {
             result.put("disclaimer", parsed.get("disclaimer") != null
                     ? parsed.get("disclaimer")
                     : "This is not a medical diagnosis. Please consult a qualified doctor.");
-            result.put("hospitals", hospitalList);
-            result.put("reply", buildSymptomReplyMessage(parsed, clinics.size()));
+                result.put("reply", buildSymptomExplanation(parsed));
+            result.put("sessionId", session.getSessionId());
+            result.put("step", "symptom_explanation");
+                result.put("specialty", normalizedSpecs.get(0));
+                result.put("hospitalCount", clinics.size());
 
             return ResponseEntity.ok(result);
 
@@ -339,23 +517,84 @@ public class ChatController {
                 .collect(Collectors.toList());
     }
 
-    private String buildSymptomReplyMessage(Map<String, Object> parsed, int hospitalCount) {
+    private String buildSymptomExplanation(Map<String, Object> parsed) {
         String symptom = (String) parsed.get("symptom");
         String issue = (String) parsed.get("inferred_issue");
+
         @SuppressWarnings("unchecked")
-        List<String> specs = (List<String>) parsed.get("specializations");
+        List<String> causes = (List<String>) parsed.get("common_causes");
+        if (causes == null || causes.isEmpty()) {
+            causes = Arrays.asList(
+                    "Minor irritation or inflammation",
+                    "Stress or lifestyle factors",
+                    "Underlying medical conditions");
+        }
 
         StringBuilder sb = new StringBuilder();
         sb.append("Based on your symptoms (").append(symptom != null ? symptom : "described issue").append("), ");
-        sb.append("this could be related to ").append(issue != null ? issue : "a health concern").append(". ");
-        sb.append("I recommend consulting a ").append(String.join(" or ", specs)).append(" specialist. ");
-
-        if (hospitalCount > 0) {
-            sb.append("Here are ").append(hospitalCount).append(" hospital(s) that may help:");
-        } else {
-            sb.append("Unfortunately, no matching hospitals were found in our database.");
+        sb.append("this could be related to ").append(issue != null ? issue : "a health concern").append(".\n\n");
+        sb.append("Common causes may include:\n");
+        for (String cause : causes) {
+            sb.append("• ").append(cause).append("\n");
         }
+        sb.append("\n💡 If you'd like, I can:\n");
+        sb.append("→ Show nearby hospitals");
         return sb.toString();
+    }
+
+    private ChatSession resolveSession(String sessionId) {
+        if (sessionId != null && !sessionId.isBlank()) {
+            Optional<ChatSession> existing = chatSessionRepository.findBySessionId(sessionId);
+            if (existing.isPresent()) {
+                return existing.get();
+            }
+        }
+        Optional<ChatSession> recent = chatSessionRepository.findFirstByOrderByCreatedAtDesc();
+        return recent.orElse(null);
+    }
+
+    private ResponseEntity<?> showHospitalsFromSession(ChatSession session, Double userLat, Double userLng) {
+        List<String> specs = session.getSpecialization() != null
+                ? List.of(session.getSpecialization())
+                : List.of();
+
+        List<ClinicSummaryDTO> clinics = clinicService.getFilteredClinics(null, specs, null, userLat, userLng);
+
+        if (userLat != null && userLng != null) {
+            clinics = clinics.stream()
+                    .sorted(Comparator
+                            .comparingDouble(c -> c.getDistance() != null ? c.getDistance() : Double.MAX_VALUE))
+                    .limit(MAX_HOSPITAL_RESULTS)
+                    .collect(Collectors.toList());
+        } else {
+            clinics = clinics.stream()
+                    .limit(MAX_HOSPITAL_RESULTS)
+                    .collect(Collectors.toList());
+        }
+
+        List<Map<String, Object>> hospitalList = new ArrayList<>();
+        for (ClinicSummaryDTO clinic : clinics) {
+            Map<String, Object> hospital = new HashMap<>();
+            hospital.put("id", clinic.getClinicId());
+            hospital.put("name", clinic.getName());
+            hospital.put("imageUrl", clinic.getImageUrl() != null ? clinic.getImageUrl() : "");
+            hospital.put("city", clinic.getCity());
+            hospital.put("rating", clinic.getRating() != null ? clinic.getRating() : 0.0);
+            hospital.put("address", clinic.getAddress() != null ? clinic.getAddress() : "");
+            hospital.put("latitude", clinic.getLatitude());
+            hospital.put("longitude", clinic.getLongitude());
+            hospital.put("distance", clinic.getDistance());
+            hospitalList.add(hospital);
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("type", "hospitals");
+        response.put("step", "hospital_selection");
+        response.put("specialty", session.getSpecialization());
+        response.put("sessionId", session.getSessionId());
+        response.put("hospitals", hospitalList);
+        response.put("reply", "Here are " + hospitalList.size() + " hospital(s) that may help:");
+        return ResponseEntity.ok(response);
     }
 
     private ResponseEntity<?> returnAsNormalText(String content) {
@@ -363,6 +602,40 @@ public class ChatController {
         result.put("type", "text");
         result.put("reply", content);
         return ResponseEntity.ok(result);
+    }
+
+    private ResponseEntity<?> handleNearbySearch(Double lat, Double lng) {
+        List<ClinicSummaryDTO> clinics = clinicService.getFilteredClinics(null, null, null, lat, lng);
+        List<ClinicSummaryDTO> sorted = clinics.stream()
+                .sorted(Comparator.comparingDouble(c -> c.getDistance() != null ? c.getDistance() : Double.MAX_VALUE))
+                .limit(MAX_HOSPITAL_RESULTS)
+                .collect(Collectors.toList());
+
+        if (sorted.isEmpty()) {
+            return returnAsNormalText("No hospitals found near your current location.");
+        }
+
+        List<Map<String, Object>> hospitalList = new ArrayList<>();
+        for (ClinicSummaryDTO clinic : sorted) {
+            Map<String, Object> hospital = new HashMap<>();
+            hospital.put("id", clinic.getClinicId());
+            hospital.put("name", clinic.getName());
+            hospital.put("imageUrl", clinic.getImageUrl() != null ? clinic.getImageUrl() : "");
+            hospital.put("city", clinic.getCity());
+            hospital.put("rating", clinic.getRating() != null ? clinic.getRating() : 0.0);
+            hospital.put("address", clinic.getAddress() != null ? clinic.getAddress() : "");
+            hospital.put("latitude", clinic.getLatitude());
+            hospital.put("longitude", clinic.getLongitude());
+            hospital.put("distance", clinic.getDistance());
+            hospitalList.add(hospital);
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("type", "hospitals");
+        response.put("hospitals", hospitalList);
+        response.put("reply", "Here are the hospitals closest to your location:");
+        response.put("step", "hospital_selection");
+        return ResponseEntity.ok(response);
     }
 
     private ResponseEntity<?> handleHospitalCitySearch(String placeName) {

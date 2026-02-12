@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.websocket.servlet.WebSocketServlet
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.env.Environment;
+import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
@@ -18,6 +19,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 	JmxAutoConfiguration.class,
 	WebSocketServletAutoConfiguration.class
 })
+@EnableMongoRepositories(basePackages = "com.hospitalfinder.backend.repository")
 @EnableScheduling
 @EnableAsync
 public class HospitalBookingBackendApplication {

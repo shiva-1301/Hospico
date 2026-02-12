@@ -52,7 +52,7 @@ public class SecurityConfig {
                 // Auth endpoints
                 .requestMatchers("/api/auth/signup", "/api/auth/login", "/api/users/me").permitAll()
                 // Public API endpoints
-                .requestMatchers("/api/clinics/**", "/api/specializations/**", "/api/doctors/**", "/api/appointments/**", "/api/medical-records/**", "/api/chat").permitAll()
+                .requestMatchers("/api/clinics/**", "/api/specializations/**", "/api/doctors/**", "/api/appointments/**", "/api/medical-records/**", "/api/chat", "/api/chat/action").permitAll()
                 .requestMatchers("/api/requests/**").permitAll()
                 // Documentation
                 .requestMatchers("/error", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()

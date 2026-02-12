@@ -7,7 +7,6 @@ public class ChatRequest {
     private String language;
     private Double latitude;
     private Double longitude;
-    private String sessionId;
 
     public List<Message> getMessages() {
         return messages;
@@ -39,14 +38,6 @@ public class ChatRequest {
 
     public void setLongitude(Double longitude) {
         this.longitude = longitude;
-    }
-
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
     }
 
     public static class Message {
