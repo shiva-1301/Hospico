@@ -28,7 +28,7 @@ public class ReviewService {
         if (review.getUserId() != null && review.getDoctorId() != null) {
             String checkQuery = "SELECT ROWID FROM reviews WHERE user_id = '" + review.getUserId()
                     + "' AND doctor_id = '" + review.getDoctorId() + "'";
-                JsonNode result = dataStoreService.executeQuery(checkQuery);
+            JsonNode result = dataStoreService.executeQuery(checkQuery);
             if (result != null && result.isArray() && result.size() > 0) {
                 throw new RuntimeException(
                         "You have already reviewed this doctor. Please delete your old review to submit a new one.");
@@ -72,6 +72,17 @@ public class ReviewService {
         } catch (Exception e) {
             log.error("Failed to delete review", e);
             throw new RuntimeException("Failed to delete review", e);
+        }
+    }
+
+    public Review updateReview(Long id, Map<String, Object> data) {
+        try {
+            JsonNode result = dataStoreService.updateRecord("reviews", id, data);
+            JsonNode rowData = result.has("reviews") ? result.get("reviews") : result;
+            return objectMapper.convertValue(rowData, Review.class);
+        } catch (Exception e) {
+            log.error("Failed to update review {}", id, e);
+            throw new RuntimeException("Failed to update review", e);
         }
     }
 

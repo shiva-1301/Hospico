@@ -1,6 +1,7 @@
 package com.hospitalfinder.backend.service;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.http.HttpEntity;
@@ -63,16 +64,30 @@ public class CloudScaleDataStoreService implements DataStoreService {
 
     @Override
     public JsonNode updateRecord(String tableName, Long rowId, Map<String, Object> data) {
-        String url = config.getBaseUrl() + "/table/" + tableName + "/row/" + rowId;
+        String url = config.getBaseUrl() + "/table/" + tableName + "/row";
         try {
-            String jsonBody = objectMapper.writeValueAsString(data);
+            // Zoho expects a JSON array of objects for updates as well, containing ROWID
+            Map<String, Object> updateData = new HashMap<>(data);
+            updateData.put("ROWID", rowId);
+            String jsonBody = objectMapper.writeValueAsString(java.util.List.of(updateData));
+
+            log.debug("UPDATE '{}' url={} body={}", tableName, url, jsonBody);
             HttpEntity<String> request = new HttpEntity<>(jsonBody, authHeaders());
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
             JsonNode body = parseResponse(response);
-            log.debug("Updated record in '{}', rowId={}", tableName, rowId);
+
+            // Response is usually an array
+            if (body != null && body.isArray() && body.size() > 0) {
+                return body.get(0);
+            }
             return body;
+        } catch (org.springframework.web.client.HttpStatusCodeException e) {
+            log.error("Failed to update record in '{}', rowId={}. Response: {}", tableName, rowId,
+                    e.getResponseBodyAsString());
+            throw new RuntimeException("Failed to update record in " + tableName + ": " + e.getResponseBodyAsString(),
+                    e);
         } catch (Exception e) {
-            log.error("Failed to update record in '{}', rowId={}", tableName, rowId, e);
+            log.error("Error updating record in '{}', rowId={}", tableName, rowId, e);
             throw new RuntimeException("Failed to update record in " + tableName, e);
         }
     }

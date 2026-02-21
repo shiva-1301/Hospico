@@ -86,6 +86,17 @@ public class DoctorService {
         }
     }
 
+    public Doctor updateDoctor(Long id, Map<String, Object> data) {
+        try {
+            JsonNode result = dataStoreService.updateRecord("doctors", id, data);
+            JsonNode rowData = result.has("doctors") ? result.get("doctors") : result;
+            return objectMapper.convertValue(rowData, Doctor.class);
+        } catch (Exception e) {
+            log.error("Failed to update doctor {}", id, e);
+            throw new RuntimeException("Failed to update doctor", e);
+        }
+    }
+
     private List<Doctor> fetchDoctors(String query) {
         try {
             JsonNode result = dataStoreService.executeQuery(query);

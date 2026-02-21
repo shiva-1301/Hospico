@@ -197,7 +197,6 @@ public class ClinicService {
         }
     }
 
-    
     private Clinic mapToClinic(JsonNode node) {
         return objectMapper.convertValue(node, Clinic.class);
     }
@@ -313,6 +312,67 @@ public class ClinicService {
 
         populateSpecializations(Collections.singletonList(clinic));
         return new ClinicResponseDTO(clinic);
+    }
+
+    public ClinicResponseDTO updateClinic(Long id, ClinicRequestDTO request) {
+        Map<String, Object> values = new HashMap<>();
+        if (request.getName() != null)
+            values.put("name", request.getName());
+        if (request.getAddress() != null)
+            values.put("address", request.getAddress());
+        if (request.getCity() != null)
+            values.put("city", request.getCity());
+        if (request.getLatitude() != null)
+            values.put("latitude", request.getLatitude());
+        if (request.getLongitude() != null)
+            values.put("longitude", request.getLongitude());
+        if (request.getPhone() != null)
+            values.put("phone", request.getPhone());
+        if (request.getTimings() != null)
+            values.put("timings", request.getTimings());
+        if (request.getRating() != null)
+            values.put("rating", request.getRating());
+        if (request.getImageUrl() != null)
+            values.put("imageUrl", request.getImageUrl());
+
+        if (!values.isEmpty()) {
+            dataStoreService.updateRecord("clinics", id, values);
+        }
+
+        // Handle specializations update if provided
+        List<Long> specIds = request.getSpecializationIds();
+        List<String> specNames = request.getSpecializations();
+
+        if ((specIds == null || specIds.isEmpty()) && specNames != null && !specNames.isEmpty()) {
+            specIds = new ArrayList<>();
+            Map<String, Long> nameToId = loadSpecializationNameMap();
+            for (String name : specNames) {
+                if (name == null || name.isBlank())
+                    continue;
+                Long specId = nameToId.get(name.toLowerCase());
+                if (specId == null) {
+                    specId = createSpecialization(name);
+                    if (specId != null)
+                        nameToId.put(name.toLowerCase(), specId);
+                }
+                if (specId != null)
+                    specIds.add(specId);
+            }
+        }
+
+        if (specIds != null && !specIds.isEmpty()) {
+            // Delete existing mappings
+            dataStoreService.executeQuery("DELETE FROM clinic_specializations WHERE clinic_id = '" + id + "'");
+            // Insert new mappings
+            for (Long specId : specIds) {
+                Map<String, Object> mapping = new HashMap<>();
+                mapping.put("clinic_id", id);
+                mapping.put("specialization_id", specId);
+                dataStoreService.insertRecord("clinic_specializations", mapping);
+            }
+        }
+
+        return getClinicById(id);
     }
 
     private Map<String, Long> loadSpecializationNameMap() {

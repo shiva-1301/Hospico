@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -29,7 +30,6 @@ public class DoctorController {
     private final DoctorService doctorService;
     private final ClinicService clinicService;
 
-
     @PostMapping("/doctors")
     public ResponseEntity<?> addDoctor(@RequestBody DoctorDTO doctorDTO) {
         try {
@@ -41,7 +41,7 @@ public class DoctorController {
             doctor.setBiography(doctorDTO.getBiography());
             doctor.setFees(doctorDTO.getFees());
             doctor.setImageUrl(doctorDTO.getImageUrl());
-            
+
             if (doctorDTO.getClinicId() != null) {
                 Clinic clinic = new Clinic();
                 clinic.setId(doctorDTO.getClinicId());
@@ -87,5 +87,16 @@ public class DoctorController {
     public ResponseEntity<?> deleteDoctor(@PathVariable Long doctorId) {
         doctorService.deleteDoctor(doctorId);
         return ResponseEntity.ok("Doctor deleted successfully");
+    }
+
+    @PutMapping("/doctors/{doctorId}")
+    public ResponseEntity<?> updateDoctor(@PathVariable Long doctorId,
+            @RequestBody java.util.Map<String, Object> data) {
+        try {
+            Doctor updated = doctorService.updateDoctor(doctorId, data);
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Failed to update doctor: " + e.getMessage());
+        }
     }
 }

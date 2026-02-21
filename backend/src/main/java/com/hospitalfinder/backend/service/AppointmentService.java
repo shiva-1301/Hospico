@@ -142,6 +142,31 @@ public class AppointmentService {
                 }
         }
 
+        public AppointmentResponseDTO updateStatus(String id, String status) {
+                try {
+                        Map<String, Object> data = new HashMap<>();
+                        data.put("status", status);
+                        // Query the ROWID first because updateRecord needs it
+                        JsonNode result = dataStoreService
+                                        .executeQuery("SELECT ROWID FROM appointments WHERE id = '" + id + "'");
+                        if (result != null && result.isArray() && result.size() > 0) {
+                                JsonNode rowNode = result.get(0).has("appointments") ? result.get(0).get("appointments")
+                                                : result.get(0);
+                                Long rowId = rowNode.get("ROWID").asLong();
+                                dataStoreService.updateRecord("appointments", rowId, data);
+                        } else {
+                                throw new RuntimeException("Appointment not found");
+                        }
+                        return fetchAppointments("SELECT * FROM appointments WHERE id = '" + id + "'").stream()
+                                        .map(this::buildAppointmentResponse)
+                                        .findFirst()
+                                        .orElseThrow(() -> new RuntimeException("Appointment not found after update"));
+                } catch (Exception e) {
+                        log.error("Failed to update appointment status {}", id, e);
+                        throw new RuntimeException("Failed to update appointment status", e);
+                }
+        }
+
         // ── Private Helpers ──────────────────────────────────────────
 
         private boolean isTimeSlotBooked(String doctorId, LocalDateTime appointmentTime) {

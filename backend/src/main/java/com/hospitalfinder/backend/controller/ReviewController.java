@@ -42,4 +42,14 @@ public class ReviewController {
         reviewService.deleteReview(id);
         return ResponseEntity.ok().build();
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateReview(@PathVariable Long id, @RequestBody java.util.Map<String, Object> data) {
+        try {
+            Review updated = reviewService.updateReview(id, data);
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Failed to update review: " + e.getMessage());
+        }
+    }
 }

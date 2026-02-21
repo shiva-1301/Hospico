@@ -64,7 +64,8 @@ public class MedicalRecordService {
             record.setType(getText(result, "type", file.getContentType()));
             record.setSize(result.has("size") ? result.get("size").asLong() : file.getSize());
             record.setCategory(getText(result, "category", category));
-            record.setUploadDate(parseUploadDate(result.has("upload_date") ? result.get("upload_date").asText() : null));
+            record.setUploadDate(
+                    parseUploadDate(result.has("upload_date") ? result.get("upload_date").asText() : null));
 
             // Manually link user for return
             if (userData != null) {
@@ -133,6 +134,17 @@ public class MedicalRecordService {
         } catch (Exception e) {
             log.error("Failed to delete record", e);
             throw new RuntimeException("Failed to delete record", e);
+        }
+    }
+
+    public MedicalRecord updateMedicalRecord(Long id, Map<String, Object> data) {
+        try {
+            JsonNode result = dataStoreService.updateRecord("medical_records", id, data);
+            JsonNode rowData = result.has("medical_records") ? result.get("medical_records") : result;
+            return mapRecordFromNode(rowData, false);
+        } catch (Exception e) {
+            log.error("Failed to update medical record {}", id, e);
+            throw new RuntimeException("Failed to update medical record", e);
         }
     }
 

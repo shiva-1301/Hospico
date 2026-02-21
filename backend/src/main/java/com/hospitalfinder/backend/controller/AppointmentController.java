@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hospitalfinder.backend.dto.AppointmentRequestDTO;
@@ -56,12 +57,14 @@ public class AppointmentController {
         }
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<?> updateAppointment(@PathVariable String id, @RequestBody AppointmentRequestDTO dto) {
-        // Migration Note: Update logic temporarily disabled or needs Service
-        // implementation
-        // For now returning generic response to allow compilation
-        return ResponseEntity.badRequest().body("Update appointment not yet implemented in Zoho migration");
+    @PutMapping("/{id}/status")
+    public ResponseEntity<?> updateAppointmentStatus(@PathVariable String id, @RequestParam String status) {
+        try {
+            AppointmentResponseDTO response = appointmentService.updateStatus(id, status);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Failed to update status: " + e.getMessage());
+        }
     }
 
     @DeleteMapping("/{id}")

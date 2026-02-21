@@ -84,14 +84,17 @@ public class CloudScaleNoSqlUserService implements UserStoreService {
     @Override
     public UserData updateUser(String email, String name, String phone, Integer age, String gender, String password) {
         try {
+            log.info("Updating user profile for: {}", email);
             // Find user first to get ROWID
             JsonNode existing = dataStoreService.findByField(usersTable, "email", email);
-            if (existing == null)
+            if (existing == null) {
+                log.warn("Update failed: User with email {} not found in table '{}'", email, usersTable);
                 return null;
+            }
 
             Long rowId = extractRowId(existing);
             if (rowId == null) {
-                log.error("Cannot determine ROWID for user: {}", email);
+                log.error("Cannot determine ROWID for user: {} in node: {}", email, existing);
                 return null;
             }
 
@@ -107,12 +110,21 @@ public class CloudScaleNoSqlUserService implements UserStoreService {
             if (password != null)
                 updates.put("password", passwordEncoder.encode(password));
 
+            // Set updated_at timestamp
+            updates.put("updated_at",
+                    new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date()));
+
+            if (updates.isEmpty()) {
+                log.info("No changes provided for user: {}", email);
+                return mapToUserData(existing);
+            }
+
             JsonNode updated = dataStoreService.updateRecord(usersTable, rowId, updates);
-            log.info("✅ User updated: {}", email);
+            log.info("✅ User updated successfully: {}", email);
             return updated != null ? mapToUserData(updated) : null;
         } catch (Exception e) {
-            log.error("Error updating user: {}", email, e);
-            return null;
+            log.error("🔴 Exception updating user {}: {}", email, e.getMessage(), e);
+            throw e; // Rethrow to let global handler or controller catch it
         }
     }
 

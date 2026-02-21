@@ -36,4 +36,15 @@ public class SpecializationService {
             return new ArrayList<>();
         }
     }
+
+    public Specialization updateSpecialization(Long id, java.util.Map<String, Object> data) {
+        try {
+            JsonNode result = dataStoreService.updateRecord("specializations", id, data);
+            JsonNode rowData = result.has("specializations") ? result.get("specializations") : result;
+            return objectMapper.convertValue(rowData, Specialization.class);
+        } catch (Exception e) {
+            log.error("Failed to update specialization {}", id, e);
+            throw new RuntimeException("Failed to update specialization", e);
+        }
+    }
 }

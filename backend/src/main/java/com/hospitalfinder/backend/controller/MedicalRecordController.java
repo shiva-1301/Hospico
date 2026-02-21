@@ -58,4 +58,16 @@ public class MedicalRecordController {
         medicalRecordService.deleteRecord(id);
         return ResponseEntity.ok().build();
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateMedicalRecord(@PathVariable Long id,
+            @RequestBody java.util.Map<String, Object> data) {
+        try {
+            MedicalRecord updated = medicalRecordService.updateMedicalRecord(id, data);
+            updated.setData(null);
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Failed to update medical record: " + e.getMessage());
+        }
+    }
 }
