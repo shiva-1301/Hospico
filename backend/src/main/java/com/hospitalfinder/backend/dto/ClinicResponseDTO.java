@@ -12,38 +12,52 @@ import lombok.Getter;
 import lombok.Setter;
 
 public class ClinicResponseDTO {
-    @Getter @Setter
-    private Long clinicId;
-    @Getter @Setter
+    @Getter
+    @Setter
+    private String clinicId;
+    @Getter
+    @Setter
     private String name;
-    @Getter @Setter
+    @Getter
+    @Setter
     private String address;
-    @Getter @Setter
+    @Getter
+    @Setter
     private String city;
-    @Getter @Setter
+    @Getter
+    @Setter
     private Double latitude;
-    @Getter @Setter
+    @Getter
+    @Setter
     private Double longitude;
-    @Getter @Setter
+    @Getter
+    @Setter
     private List<String> specializations;
-    @Getter @Setter
+    @Getter
+    @Setter
     private String phone;
-    @Getter @Setter
+    @Getter
+    @Setter
     private String website;
-    @Getter @Setter
+    @Getter
+    @Setter
     private String timings;
-    @Getter @Setter
+    @Getter
+    @Setter
     private Double rating;
-    @Getter @Setter
+    @Getter
+    @Setter
     private Integer reviews;
-    @Getter @Setter
+    @Getter
+    @Setter
     private String imageUrl;
-    @Getter @Setter
+    @Getter
+    @Setter
     private List<Doctor> doctors = new ArrayList<>();
 
     // Constructor
     public ClinicResponseDTO(Clinic clinic) {
-        this.clinicId = clinic.getId();
+        this.clinicId = clinic.getId() != null ? clinic.getId().toString() : null;
         this.name = clinic.getName();
         this.address = clinic.getAddress();
         this.city = clinic.getCity();
@@ -51,7 +65,7 @@ public class ClinicResponseDTO {
         this.latitude = clinic.getLatitude();
         this.specializations = clinic.getSpecializations()
                 .stream()
-                .map(Specialization::getSpecialization)
+                .map(Specialization::getName)
                 .collect(Collectors.toList());
         this.phone = clinic.getPhone();
         this.website = clinic.getWebsite();
@@ -63,4 +77,3 @@ public class ClinicResponseDTO {
     }
 
 }
-

@@ -11,5 +11,5 @@ public class DoctorDTO {
     private String biography;
     private Double fees;
     private String imageUrl;
-    private Long clinicId;
+    private String clinicId;
 }

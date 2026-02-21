@@ -54,7 +54,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/signup", "/api/auth/login", "/api/users/me").permitAll()
                         // Public API endpoints
                         .requestMatchers("/api/clinics/**", "/api/specializations/**", "/api/doctors/**",
-                                "/api/appointments/**", "/api/medical-records/**", "/api/chat", "/api/chat/action")
+                                "/api/appointments/**", "/api/medical-records/**", "/api/chat", "/api/chat/action",
+                                "/api/reviews/**")
                         .permitAll()
                         .requestMatchers("/api/requests/**").permitAll()
                         // Documentation

@@ -41,7 +41,7 @@ public class ReviewService {
         values.put("rating", review.getRating());
         values.put("comment", review.getComment());
         values.put("user_id", review.getUserId());
-        values.put("hospital_id", review.getHospitalId());
+        values.put("clinic_id", review.getHospitalId());
         values.put("doctor_id", review.getDoctorId());
         values.put("created_at", review.getCreatedAt().toString());
 
@@ -55,7 +55,7 @@ public class ReviewService {
     }
 
     public List<Review> getReviewsByHospital(Long hospitalId) {
-        return fetchReviews("SELECT * FROM reviews WHERE hospital_id = '" + hospitalId + "'");
+        return fetchReviews("SELECT * FROM reviews WHERE clinic_id = '" + hospitalId + "'");
     }
 
     public List<Review> getReviewsByDoctor(Long doctorId) {

@@ -16,7 +16,6 @@ import com.hospitalfinder.backend.dto.ClinicResponseDTO;
 import com.hospitalfinder.backend.dto.ClinicSummaryDTO;
 import com.hospitalfinder.backend.dto.NearbyClinicDTO;
 import com.hospitalfinder.backend.entity.Clinic;
-import com.hospitalfinder.backend.entity.Doctor;
 import com.hospitalfinder.backend.entity.Specialization;
 
 import lombok.RequiredArgsConstructor;
@@ -28,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ClinicService {
 
     private final DataStoreService dataStoreService;
+    private final DoctorService doctorService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public List<ClinicSummaryDTO> getFilteredClinics(String city, List<String> specializations, String search,
@@ -93,7 +93,7 @@ public class ClinicService {
         if (specialization != null && !specialization.isEmpty()) {
             clinics = clinics.stream()
                     .filter(c -> c.getSpecializations().stream()
-                            .anyMatch(spec -> spec.getSpecialization().toLowerCase()
+                            .anyMatch(spec -> spec.getName().toLowerCase()
                                     .contains(specialization.toLowerCase())))
                     .collect(Collectors.toList());
         }
@@ -382,12 +382,12 @@ public class ClinicService {
             for (JsonNode node : specsResult) {
                 JsonNode data = node.has("specializations") ? node.get("specializations") : node;
                 Specialization spec = objectMapper.convertValue(data, Specialization.class);
-                if (spec.getSpecialization() != null && spec.getId() != null) {
-                    map.put(spec.getSpecialization().toLowerCase(), spec.getId());
-                } else if (spec.getSpecialization() != null) {
+                if (spec.getName() != null && spec.getId() != null) {
+                    map.put(spec.getName().toLowerCase(), spec.getId());
+                } else if (spec.getName() != null) {
                     Long id = extractId(data);
                     if (id != null) {
-                        map.put(spec.getSpecialization().toLowerCase(), id);
+                        map.put(spec.getName().toLowerCase(), id);
                     }
                 }
             }
@@ -397,7 +397,7 @@ public class ClinicService {
 
     private Long createSpecialization(String name) {
         Map<String, Object> values = new HashMap<>();
-        values.put("specialization", name);
+        values.put("name", name); // Schema confirmed column is 'name'
         JsonNode created = dataStoreService.insertRecord("specializations", values);
         return extractId(created);
     }
@@ -419,7 +419,7 @@ public class ClinicService {
         Clinic clinic = fetchClinics("SELECT * FROM clinics WHERE ROWID = '" + id + "'").stream().findFirst()
                 .orElseThrow(() -> new RuntimeException("Clinic not found"));
         populateSpecializations(Collections.singletonList(clinic));
-        clinic.setDoctors(fetchDoctors(id));
+        clinic.setDoctors(doctorService.findByClinicId(id));
         return new ClinicResponseDTO(clinic);
     }
 
@@ -429,24 +429,6 @@ public class ClinicService {
         } catch (Exception e) {
             log.error("Failed to delete clinic", e);
             throw new RuntimeException("Failed to delete clinic", e);
-        }
-    }
-
-    private List<Doctor> fetchDoctors(Long clinicId) {
-        try {
-            String query = "SELECT * FROM doctors WHERE clinic_id = '" + clinicId + "'";
-            JsonNode result = dataStoreService.executeQuery(query);
-            List<Doctor> doctors = new ArrayList<>();
-            if (result != null && result.isArray()) {
-                for (JsonNode node : result) {
-                    JsonNode data = node.has("doctors") ? node.get("doctors") : node;
-                    doctors.add(objectMapper.convertValue(data, Doctor.class));
-                }
-            }
-            return doctors;
-        } catch (Exception e) {
-            log.error("Error fetching doctors", e);
-            return new ArrayList<>();
         }
     }
 
@@ -465,7 +447,7 @@ public class ClinicService {
         if (normalizedSpecs == null || normalizedSpecs.isEmpty())
             return 0;
         return (int) clinic.getSpecializations().stream()
-                .map(Specialization::getSpecialization)
+                .map(Specialization::getName)
                 .filter(spec -> spec != null && !spec.isBlank())
                 .map(String::toLowerCase)
                 .filter(normalizedSpecs::contains)

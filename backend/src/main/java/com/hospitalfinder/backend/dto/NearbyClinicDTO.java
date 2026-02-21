@@ -35,7 +35,7 @@ public class NearbyClinicDTO {
         this.latitude = clinic.getLatitude();
         this.specializations = clinic.getSpecializations()
                 .stream()
-                .map(Specialization::getSpecialization)
+                .map(Specialization::getName)
                 .collect(Collectors.toList());
         this.phone = clinic.getPhone();
         this.imageUrl = clinic.getImageUrl();

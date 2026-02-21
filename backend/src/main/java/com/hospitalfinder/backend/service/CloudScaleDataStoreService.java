@@ -56,6 +56,10 @@ public class CloudScaleDataStoreService implements DataStoreService {
                 return body.get(0);
             }
             return body;
+        } catch (org.springframework.web.client.HttpStatusCodeException e) {
+            log.error("Failed to insert record into '{}'. Response: {}", tableName, e.getResponseBodyAsString());
+            throw new RuntimeException("Failed to insert record into " + tableName + ": " + e.getResponseBodyAsString(),
+                    e);
         } catch (Exception e) {
             log.error("Failed to insert record into '{}': {}", tableName, e.getMessage());
             throw new RuntimeException("Failed to insert record into " + tableName, e);

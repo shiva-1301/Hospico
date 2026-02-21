@@ -1,0 +1,27 @@
+{
+    "name": "Latha Super Specialitiy Hospital",
+    "address": "29-14-58, Prakasam Road, Suryaraopet",
+    "city": "Vijayawada",
+    "latitude": 16.509647444086493,
+    "longitude": 80.63592887574914,
+    "specializations": [
+        "Neurosurgery",
+        "OBG",
+        "Pediatrics",
+        "Nephrology",
+        "Urology",
+        "Cardiology",
+        "CT Surgery",
+        "General Medicine",
+        "General Surgery",
+        "Orthopedics",
+        "Pulmonology",
+        "Anesthesiology",
+        "Radiology",
+        "Physiotherapy Unit"
+    ],
+    "phone": "9848409889",
+    "timings": "Open 24 Hours",
+    "rating": 4.8,
+    "imageUrl": "/src/assets/images/default-hospital.jpg"
+}

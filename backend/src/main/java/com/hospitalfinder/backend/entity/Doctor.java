@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -14,6 +16,7 @@ public class Doctor {
     @Setter
     @JsonProperty("id")
     @JsonAlias("ROWID")
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     @Getter

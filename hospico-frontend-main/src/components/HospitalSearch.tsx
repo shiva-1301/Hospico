@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { apiRequest } from "../api";
 
 interface Specialization {
-  id: number;
-  specialization: string;
+  id: string | number;
+  name: string;
 }
 
 const HospitalSearch = () => {
@@ -220,14 +220,14 @@ function SpecialtyFilters({ searchText, selectedLocation }: {
         console.error("Failed to fetch specializations:", error);
         // Fallback to hardcoded list if API fails
         setSpecialties([
-          { id: 1, specialization: "Dermatologist" },
-          { id: 2, specialization: "Dentist" },
-          { id: 3, specialization: "Cardiologist" },
-          { id: 4, specialization: "ENT Specialist" },
-          { id: 5, specialization: "General Physician" },
-          { id: 6, specialization: "Pediatrician" },
-          { id: 7, specialization: "Gynecologist" },
-          { id: 8, specialization: "Neurologist" },
+          { id: 1, name: "Dermatologist" },
+          { id: 2, name: "Dentist" },
+          { id: 3, name: "Cardiologist" },
+          { id: 4, name: "ENT Specialist" },
+          { id: 5, name: "General Physician" },
+          { id: 6, name: "Pediatrician" },
+          { id: 7, name: "Gynecologist" },
+          { id: 8, name: "Neurologist" },
         ]);
       }
     };
@@ -288,21 +288,21 @@ function SpecialtyFilters({ searchText, selectedLocation }: {
         className="flex flex-1 gap-2 overflow-x-auto pb-2"
       >
         {specialties
-          .filter((s, i, arr) => arr.findIndex(x => x.specialization === s.specialization) === i)
+          .filter((s, i, arr) => arr.findIndex(x => x.name === s.name) === i)
           .map((s, index) => (
-          <button
-            key={`${s.id}-${index}`}
-            className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors border ${selectedSpecializations.includes(s.specialization)
-              ? "bg-blue-500 text-white border-blue-400 shadow-lg"
-              : "bg-white text-gray-700 border-gray-200 hover:border-blue-500 hover:text-blue-600 dark:bg-slate-800/80 dark:text-slate-100 dark:border-slate-700 dark:hover:border-blue-500 dark:hover:text-white"
-              }`}
-            onClick={() => handleSpecializationClick(s.specialization)}
-          >
-            {s.specialization === "ENT" || s.specialization === "ENT Specialist"
-              ? "Ear, Nose & Throat"
-              : s.specialization}
-          </button>
-        ))}
+            <button
+              key={`${s.id}-${index}`}
+              className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors border ${selectedSpecializations.includes(s.name)
+                ? "bg-blue-500 text-white border-blue-400 shadow-lg"
+                : "bg-white text-gray-700 border-gray-200 hover:border-blue-500 hover:text-blue-600 dark:bg-slate-800/80 dark:text-slate-100 dark:border-slate-700 dark:hover:border-blue-500 dark:hover:text-white"
+                }`}
+              onClick={() => handleSpecializationClick(s.name)}
+            >
+              {s.name === "ENT" || s.name === "ENT Specialist"
+                ? "Ear, Nose & Throat"
+                : s.name}
+            </button>
+          ))}
       </div>
       <button
         className="flex-shrink-0 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-400 dark:text-slate-200"

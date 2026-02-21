@@ -30,7 +30,9 @@ public class Review {
     // Relations stored as IDs to keep it lightweight and flexible
     private Long userId;
 
-    private Long hospitalId; // Note: Clinic ID
+    @JsonProperty("clinic_id")
+    @JsonAlias("hospital_id")
+    private Long hospitalId;
 
     private Long doctorId;
 }

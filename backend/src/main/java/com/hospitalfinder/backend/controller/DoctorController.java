@@ -44,7 +44,7 @@ public class DoctorController {
 
             if (doctorDTO.getClinicId() != null) {
                 Clinic clinic = new Clinic();
-                clinic.setId(doctorDTO.getClinicId());
+                clinic.setId(Long.valueOf(doctorDTO.getClinicId()));
                 doctor.setClinic(clinic);
             }
 
@@ -60,13 +60,15 @@ public class DoctorController {
         try {
             ClinicResponseDTO clinicDTO = clinicService.getClinicById(clinicId);
             Clinic clinic = new Clinic();
-            clinic.setId(clinicDTO.getClinicId()); // Populate minimal needed
+            if (clinicDTO.getClinicId() != null) {
+                clinic.setId(Long.valueOf(clinicDTO.getClinicId()));
+            }
             doctor.setClinic(clinic);
 
             Doctor savedDoctor = doctorService.save(doctor);
             return ResponseEntity.ok(savedDoctor);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Clinic not found");
+            return ResponseEntity.badRequest().body("Failed to add doctor to clinic: " + e.getMessage());
         }
     }
 

@@ -1,0 +1,33 @@
+{
+    "name": "Aayush NRI LEPL Healthcare Pvt. Ltd.",
+    "address": "48-13-3 & 3A, Opp. Siddartha Medical College",
+    "city": "Vijayawada",
+    "latitude": 16.516162450290775,
+    "longitude": 80.67450807846733,
+    "specializations": [
+        "Anesthesiology",
+        "Cardiology",
+        "Cardiothoracic surgery",
+        "ENT",
+        "Emergency Medicine",
+        "General Medicine",
+        "General Surgery",
+        "Nephrology",
+        "Neurosurgery",
+        "OBG",
+        "Orthopedics",
+        "Pathology",
+        "Plastic surgery",
+        "Pulmonology",
+        "Radiology",
+        "Surgical Gastroenterology",
+        "Surgical Oncology",
+        "Urology",
+        "Physiotherapy unit",
+        "Dialysis unit"
+    ],
+    "phone": null,
+    "timings": "Open 24 Hours",
+    "rating": 4.3,
+    "imageUrl": "/src/assets/images/default-hospital.jpg"
+}

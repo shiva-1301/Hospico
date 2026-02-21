@@ -37,6 +37,15 @@ public class SpecializationService {
         }
     }
 
+    public Specialization getSpecializationByName(String name) {
+        if (name == null || name.isEmpty())
+            return null;
+        return getAllSpecializations().stream()
+                .filter(s -> s.getName().equalsIgnoreCase(name))
+                .findFirst()
+                .orElse(null);
+    }
+
     public Specialization updateSpecialization(Long id, java.util.Map<String, Object> data) {
         try {
             JsonNode result = dataStoreService.updateRecord("specializations", id, data);

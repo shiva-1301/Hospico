@@ -8,7 +8,7 @@ import { useSelector } from "react-redux";
 import type { RootState } from "../store/store";
 
 interface Doctor {
-  id: string;
+  id: string | number;
   name: string;
   qualification: string;
   specialization: string;
@@ -18,7 +18,8 @@ interface Doctor {
 }
 
 interface Hospital {
-  id: string;
+  id: string | number;
+  clinicId?: string | number;
   name: string;
   address: string;
   city: string;
@@ -50,7 +51,7 @@ const HospitalProfile = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<{ [key: string]: string }>({});
   const [showBookingModal, setShowBookingModal] = useState(false);
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string | number | null>(null);
   const tabRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const [selectedSpecialization, setSelectedSpecialization] = useState<string>("All");
   const [reviews, setReviews] = useState<Review[]>([]);

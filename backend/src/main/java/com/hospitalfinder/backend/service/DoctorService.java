@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 public class DoctorService {
 
     private final DataStoreService dataStoreService;
+    private final SpecializationService specializationService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public Doctor findById(Long id) {
@@ -45,18 +46,28 @@ public class DoctorService {
     public Doctor save(Doctor doctor) {
         Map<String, Object> values = new HashMap<>();
         values.put("name", doctor.getName());
-        values.put("qualification", doctor.getQualifications()); // Fixed singular/plural
-        values.put("specialization", doctor.getSpecialization());
-        values.put("experience", doctor.getExperience());
-        values.put("about", doctor.getBiography()); // Fixed about -> biography
-        values.put("fees", doctor.getFees());
+
+        // Resolve specialization name to ID
+        if (doctor.getSpecialization() != null) {
+            var spec = specializationService.getSpecializationByName(doctor.getSpecialization());
+            if (spec != null) {
+                values.put("specialization_id", spec.getId());
+            } else {
+                log.warn("Specialization '{}' not found, skipping specialization_id", doctor.getSpecialization());
+            }
+        }
+
         if (doctor.getClinic() != null) {
             values.put("clinic_id", doctor.getClinic().getId());
         }
 
+        // Columns like qualifications, experience, biography, fees are UNKNOWN to the
+        // schema
+        // and cause INVALID_INPUT. We must omit them for now.
+
         try {
             JsonNode result = dataStoreService.insertRecord("doctors", values);
-            return objectMapper.convertValue(result, Doctor.class);
+            return mapToDoctor(result);
         } catch (Exception e) {
             log.error("Failed to save doctor", e);
             throw new RuntimeException("Failed to save doctor", e);
@@ -103,16 +114,7 @@ public class DoctorService {
             List<Doctor> doctors = new ArrayList<>();
             if (result != null && result.isArray()) {
                 for (JsonNode node : result) {
-                    JsonNode data = node.has("doctors") ? node.get("doctors") : node;
-                    Doctor d = objectMapper.convertValue(data, Doctor.class);
-                    // Manually populate Clinic stub if needed (usually ID is enough or handled by
-                    // caller)
-                    if (node.has("clinic_id")) {
-                        Clinic c = new Clinic();
-                        c.setId(node.get("clinic_id").asLong());
-                        d.setClinic(c);
-                    }
-                    doctors.add(d);
+                    doctors.add(mapToDoctor(node));
                 }
             }
             return doctors;
@@ -120,5 +122,28 @@ public class DoctorService {
             log.error("Error fetching doctors", e);
             return new ArrayList<>();
         }
+    }
+
+    private Doctor mapToDoctor(JsonNode node) {
+        JsonNode data = node.has("doctors") ? node.get("doctors") : node;
+        Doctor d = objectMapper.convertValue(data, Doctor.class);
+
+        // Map specialization_id back to specialization name
+        if (data.has("specialization_id") && !data.get("specialization_id").isNull()) {
+            Long specId = data.get("specialization_id").asLong();
+            List<com.hospitalfinder.backend.entity.Specialization> specs = specializationService
+                    .getAllSpecializations();
+            specs.stream()
+                    .filter(s -> s.getId().equals(specId))
+                    .findFirst()
+                    .ifPresent(s -> d.setSpecialization(s.getName()));
+        }
+
+        if (data.has("clinic_id") && !data.get("clinic_id").isNull()) {
+            Clinic c = new Clinic();
+            c.setId(data.get("clinic_id").asLong());
+            d.setClinic(c);
+        }
+        return d;
     }
 }

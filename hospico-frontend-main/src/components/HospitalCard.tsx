@@ -66,8 +66,8 @@ const HospitalCard = ({
             whileTap={{ scale: 0.98 }}
             onClick={handleCardClick}
             className={`group relative flex flex-col h-full rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 border ${theme === "dark"
-                    ? "bg-slate-800/50 border-slate-700 hover:border-blue-500/50 hover:bg-slate-800"
-                    : "bg-white border-gray-100 hover:border-blue-200 hover:shadow-xl shadow-sm"
+                ? "bg-slate-800/50 border-slate-700 hover:border-blue-500/50 hover:bg-slate-800"
+                : "bg-white border-gray-100 hover:border-blue-200 hover:shadow-xl shadow-sm"
                 }`}
         >
             {/* Image Section */}
@@ -127,8 +127,8 @@ const HospitalCard = ({
                         <span
                             key={spec}
                             className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${theme === "dark"
-                                    ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
-                                    : "bg-blue-50 text-blue-600 border border-blue-100"
+                                ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                                : "bg-blue-50 text-blue-600 border border-blue-100"
                                 }`}
                         >
                             {spec}
@@ -145,8 +145,8 @@ const HospitalCard = ({
                 <div className="mt-auto flex items-center gap-2">
                     <button
                         className={`flex-1 py-2 px-4 rounded-xl text-sm font-bold transition-all ${theme === "dark"
-                                ? "bg-blue-600 hover:bg-blue-500 text-white shadow-soft-blue"
-                                : "bg-blue-600 hover:bg-blue-700 text-white"
+                            ? "bg-blue-600 hover:bg-blue-500 text-white shadow-soft-blue"
+                            : "bg-blue-600 hover:bg-blue-700 text-white"
                             }`}
                     >
                         View Details
@@ -155,8 +155,8 @@ const HospitalCard = ({
                     <button
                         onClick={handleMapClick}
                         className={`p-2 rounded-xl border transition-all ${theme === "dark"
-                                ? "border-slate-700 hover:border-blue-500 text-blue-400 hover:bg-blue-500/10"
-                                : "border-gray-200 hover:border-blue-300 text-blue-600 hover:bg-blue-50"
+                            ? "border-slate-700 hover:border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                            : "border-gray-200 hover:border-blue-300 text-blue-600 hover:bg-blue-50"
                             }`}
                         title="Navigate on Google Maps"
                     >

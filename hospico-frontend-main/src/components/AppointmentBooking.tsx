@@ -12,7 +12,7 @@ interface UserProfile {
 }
 
 interface Doctor {
-  id: string;
+  id: string | number;
   name: string;
   specialization: string;
   qualifications: string;
@@ -33,8 +33,8 @@ interface AppointmentResponse {
 }
 
 interface AppointmentBookingProps {
-  hospitalId: string;
-  doctorId?: string;
+  hospitalId: string | number;
+  doctorId?: string | number;
   doctorName?: string;
   specialization?: string;
   onClose: () => void;
@@ -43,7 +43,7 @@ interface AppointmentBookingProps {
 const AppointmentBooking = ({ hospitalId, doctorId, doctorName, specialization, onClose }: AppointmentBookingProps) => {
   const { user } = useSelector((state: RootState) => state.auth);
 
-  const [selectedDoctor, setSelectedDoctor] = useState<string>("");
+  const [selectedDoctor, setSelectedDoctor] = useState<string | number>("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string>("");
@@ -109,7 +109,7 @@ const AppointmentBooking = ({ hospitalId, doctorId, doctorName, specialization, 
 
         // Pre-fill doctor if provided from props
         if (doctorId) {
-          setSelectedDoctor(doctorId);
+          setSelectedDoctor(String(doctorId));
         }
 
       } catch (err) {
@@ -267,9 +267,9 @@ const AppointmentBooking = ({ hospitalId, doctorId, doctorName, specialization, 
       const appointmentDateTime = `${selectedDate}T${selectedSlot}:00`;
 
       const appointmentData = {
-        userId: user?.id ? parseInt(user.id) : null,
-        clinicId: parseInt(hospitalId),
-        doctorId: parseInt(selectedDoctor),
+        userId: user?.id ? String(user.id) : null,
+        clinicId: String(hospitalId),
+        doctorId: String(selectedDoctor),
         appointmentTime: appointmentDateTime,
         patientName,
         patientAge: parseInt(patientAge),

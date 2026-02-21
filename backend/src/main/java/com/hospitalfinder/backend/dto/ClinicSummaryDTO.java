@@ -12,7 +12,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class ClinicSummaryDTO {
-    private Long clinicId;
+    private String clinicId;
     private String name;
     private String address;
     private String city;
@@ -32,7 +32,7 @@ public class ClinicSummaryDTO {
     }
 
     public ClinicSummaryDTO(Clinic clinic, Double distance, Integer estimatedTime) {
-        this.clinicId = clinic.getId();
+        this.clinicId = clinic.getId() != null ? clinic.getId().toString() : null;
         this.name = clinic.getName();
         this.address = clinic.getAddress();
         this.city = clinic.getCity();
@@ -40,7 +40,7 @@ public class ClinicSummaryDTO {
         this.latitude = clinic.getLatitude();
         this.specializations = clinic.getSpecializations()
                 .stream()
-                .map(Specialization::getSpecialization)
+                .map(Specialization::getName)
                 .collect(Collectors.toList());
         this.rating = clinic.getRating();
         this.reviews = clinic.getReviews();
