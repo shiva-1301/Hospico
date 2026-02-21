@@ -1,0 +1,17 @@
+{
+    "name": "Vanaja Diabetic & Multi-Speciality Hospital",
+    "address": "A S Rao Nagar",
+    "city": "Hyderabad",
+    "phone": "9999999999",
+    "latitude": 17.47756462213472,
+    "longitude": 78.55293678587218,
+    "rating": 4.6,
+    "timings": "Mon-Sat 9am-6pm",
+    "imageUrl": "http://localhost:5173/src/assets/images/default-hospital.jpg",
+    "specializations": [
+        "Anesthesiology",
+        "Cardiology",
+        "Dermatology",
+        "Emergency Medicine"
+    ]
+}

@@ -1,11 +1,17 @@
 package com.hospitalfinder.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Specialization {
+    @JsonProperty("id")
+    @JsonAlias("ROWID")
     private Long id;
 
+    @JsonProperty("specialization")
+    @JsonAlias("name")
     private String specialization;
 
     public Long getId() {

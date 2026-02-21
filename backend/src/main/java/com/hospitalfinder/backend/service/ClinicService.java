@@ -222,7 +222,7 @@ public class ClinicService {
                 for (JsonNode node : mappingResult) {
                     JsonNode data = node.has("clinic_specializations") ? node.get("clinic_specializations") : node;
                     Long clinicId = data.get("clinic_id").asLong();
-                    Long specId = data.get("specializations_id").asLong();
+                    Long specId = data.get("specialization_id").asLong();
 
                     clinics.stream().filter(c -> c.getId().equals(clinicId)).findFirst()
                             .ifPresent(c -> {
@@ -257,17 +257,11 @@ public class ClinicService {
         if (request.getPhone() != null) {
             values.put("phone", request.getPhone());
         }
-        if (request.getWebsite() != null) {
-            values.put("website", request.getWebsite());
-        }
         if (request.getTimings() != null) {
             values.put("timings", request.getTimings());
         }
         if (request.getRating() != null) {
             values.put("rating", request.getRating());
-        }
-        if (request.getReviews() != null) {
-            values.put("reviews", request.getReviews());
         }
         if (request.getImageUrl() != null) {
             values.put("imageUrl", request.getImageUrl());
@@ -311,7 +305,7 @@ public class ClinicService {
                 }
                 Map<String, Object> mapping = new HashMap<>();
                 mapping.put("clinic_id", clinicId);
-                mapping.put("specializations_id", specId);
+                mapping.put("specialization_id", specId);
                 dataStoreService.insertRecord("clinic_specializations", mapping);
             }
         }

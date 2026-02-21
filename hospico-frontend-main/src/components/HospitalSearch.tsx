@@ -287,9 +287,11 @@ function SpecialtyFilters({ searchText, selectedLocation }: {
         id="specialties-container"
         className="flex flex-1 gap-2 overflow-x-auto pb-2"
       >
-        {specialties.map((s) => (
+        {specialties
+          .filter((s, i, arr) => arr.findIndex(x => x.specialization === s.specialization) === i)
+          .map((s, index) => (
           <button
-            key={s.id}
+            key={`${s.id}-${index}`}
             className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors border ${selectedSpecializations.includes(s.specialization)
               ? "bg-blue-500 text-white border-blue-400 shadow-lg"
               : "bg-white text-gray-700 border-gray-200 hover:border-blue-500 hover:text-blue-600 dark:bg-slate-800/80 dark:text-slate-100 dark:border-slate-700 dark:hover:border-blue-500 dark:hover:text-white"
