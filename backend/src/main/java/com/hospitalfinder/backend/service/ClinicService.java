@@ -197,6 +197,7 @@ public class ClinicService {
         }
     }
 
+    
     private Clinic mapToClinic(JsonNode node) {
         return objectMapper.convertValue(node, Clinic.class);
     }
