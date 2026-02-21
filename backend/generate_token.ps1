@@ -1,4 +1,3 @@
-
 $clientId = Read-Host "Enter your Client ID"
 $clientSecret = Read-Host "Enter your Client Secret"
 $code = Read-Host "Enter the new Authorization Code (from Self Client)"

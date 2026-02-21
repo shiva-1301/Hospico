@@ -38,7 +38,7 @@ import com.hospitalfinder.backend.dto.ClinicResponseDTO;
 import com.hospitalfinder.backend.dto.ClinicSummaryDTO;
 import com.hospitalfinder.backend.entity.ChatSession;
 import com.hospitalfinder.backend.entity.Doctor;
-import com.hospitalfinder.backend.repository.ChatSessionRepository;
+import com.hospitalfinder.backend.service.ChatSessionService;
 import com.hospitalfinder.backend.service.ClinicService;
 import com.hospitalfinder.backend.service.DoctorService;
 
@@ -53,7 +53,7 @@ public class ChatController {
     private String apiKey;
 
     private final ClinicService clinicService;
-    private final ChatSessionRepository chatSessionRepository;
+    private final ChatSessionService chatSessionService;
     private final DoctorService doctorService;
 
     private final RestTemplate restTemplate = new RestTemplate();
@@ -88,8 +88,8 @@ public class ChatController {
             "gynecology", "ent", "general medicine", "surgery", "ophthalmology",
             "pulmonology", "oncology");
 
-        // Symptom analysis prompt (only injected when symptoms detected)
-        private static final String SYMPTOM_ANALYSIS_PROMPT = """
+    // Symptom analysis prompt (only injected when symptoms detected)
+    private static final String SYMPTOM_ANALYSIS_PROMPT = """
             IMPORTANT: The user is describing health symptoms. You must respond ONLY with valid JSON in this exact format:
             {"type":"specialization_match","symptom":"<brief symptom summary>","inferred_issue":"<simple non-diagnostic explanation>","common_causes":["<cause1>","<cause2>","<cause3>"],"specializations":["<spec1>","<spec2>"],"confidence":"low|medium|high","disclaimer":"This is not a medical diagnosis. Please consult a qualified doctor."}
 
@@ -140,31 +140,31 @@ public class ChatController {
         }
 
         String latestMessage = messages != null && !messages.isEmpty()
-            ? messages.get(messages.size() - 1).getContent()
-            : "";
+                ? messages.get(messages.size() - 1).getContent()
+                : "";
 
         String lowerMessage = latestMessage == null ? "" : latestMessage.toLowerCase();
         boolean wantsHospitals = lowerMessage.contains("show") || lowerMessage.contains("hospitals")
-            || lowerMessage.contains("nearby") || lowerMessage.contains("find hospital");
-        
-        boolean wantsBooking = lowerMessage.contains("book") && 
-            (lowerMessage.contains("appointment") || lowerMessage.contains("doctor") || lowerMessage.contains("visit"));
+                || lowerMessage.contains("nearby") || lowerMessage.contains("find hospital");
+
+        boolean wantsBooking = lowerMessage.contains("book") &&
+                (lowerMessage.contains("appointment") || lowerMessage.contains("doctor")
+                        || lowerMessage.contains("visit"));
 
         if (wantsBooking) {
             return returnAsNormalText(
-                "📅 Appointment booking feature will be available soon!\n\n" +
-                "For now, you can:\n" +
-                "→ Find nearby hospitals\n" +
-                "→ View doctor information\n" +
-                "→ Contact hospitals directly\n\n" +
-                "Is there anything else I can help you with?"
-            );
+                    "📅 Appointment booking feature will be available soon!\n\n" +
+                            "For now, you can:\n" +
+                            "→ Find nearby hospitals\n" +
+                            "→ View doctor information\n" +
+                            "→ Contact hospitals directly\n\n" +
+                            "Is there anything else I can help you with?");
         }
 
         if (wantsHospitals) {
             ChatSession session = resolveSession(request.getSessionId());
             if (session != null && session.getSpecialization() != null) {
-            return showHospitalsFromSession(session, request.getLatitude(), request.getLongitude());
+                return showHospitalsFromSession(session, request.getLatitude(), request.getLongitude());
             }
         }
 
@@ -277,7 +277,7 @@ public class ChatController {
         try {
             System.out.println("Chat action received: " + request.getAction() + " with value: " + request.getValue());
 
-            ChatSession session = chatSessionRepository.findBySessionId(request.getSessionId())
+            ChatSession session = chatSessionService.findBySessionId(request.getSessionId())
                     .orElseGet(() -> {
                         ChatSession newSession = new ChatSession();
                         String sessionId = request.getSessionId() != null && !request.getSessionId().isBlank()
@@ -320,7 +320,7 @@ public class ChatController {
         session.setClinicName(clinic.getName());
         session.setCurrentStep("doctor_selection");
         session.setUpdatedAt(LocalDateTime.now());
-        chatSessionRepository.save(session);
+        chatSessionService.save(session);
 
         List<Doctor> doctors;
         if (session.getSpecialization() != null && !session.getSpecialization().isBlank()) {
@@ -366,7 +366,7 @@ public class ChatController {
         session.setDoctorName(doctor.getName());
         session.setCurrentStep("doctor_selected");
         session.setUpdatedAt(LocalDateTime.now());
-        chatSessionRepository.save(session);
+        chatSessionService.save(session);
 
         Map<String, Object> doctorDetails = new HashMap<>();
         doctorDetails.put("id", doctor.getId());
@@ -378,7 +378,8 @@ public class ChatController {
 
         Map<String, Object> response = new HashMap<>();
         response.put("step", "doctor_selected");
-        response.put("message", "Here is Dr. " + doctor.getName() + "'s information. You can contact the hospital directly to book an appointment.");
+        response.put("message", "Here is Dr. " + doctor.getName()
+                + "'s information. You can contact the hospital directly to book an appointment.");
         response.put("doctor", doctorDetails);
         response.put("sessionId", session.getSessionId());
         return ResponseEntity.ok(response);
@@ -457,10 +458,10 @@ public class ChatController {
             session.setCreatedAt(LocalDateTime.now());
             session.setUpdatedAt(LocalDateTime.now());
             session.setExpiresAt(LocalDateTime.now().plusMinutes(30));
-            chatSessionRepository.save(session);
+            chatSessionService.save(session);
 
             Map<String, Object> result = new HashMap<>();
-                result.put("type", "symptom_explanation");
+            result.put("type", "symptom_explanation");
             result.put("symptom", parsed.get("symptom"));
             result.put("inferredIssue", parsed.get("inferred_issue"));
             result.put("specializations", specializations);
@@ -468,11 +469,11 @@ public class ChatController {
             result.put("disclaimer", parsed.get("disclaimer") != null
                     ? parsed.get("disclaimer")
                     : "This is not a medical diagnosis. Please consult a qualified doctor.");
-                result.put("reply", buildSymptomExplanation(parsed));
+            result.put("reply", buildSymptomExplanation(parsed));
             result.put("sessionId", session.getSessionId());
             result.put("step", "symptom_explanation");
-                result.put("specialty", normalizedSpecs.get(0));
-                result.put("hospitalCount", clinics.size());
+            result.put("specialty", normalizedSpecs.get(0));
+            result.put("hospitalCount", clinics.size());
 
             return ResponseEntity.ok(result);
 
@@ -544,12 +545,12 @@ public class ChatController {
 
     private ChatSession resolveSession(String sessionId) {
         if (sessionId != null && !sessionId.isBlank()) {
-            Optional<ChatSession> existing = chatSessionRepository.findBySessionId(sessionId);
+            Optional<ChatSession> existing = chatSessionService.findBySessionId(sessionId);
             if (existing.isPresent()) {
                 return existing.get();
             }
         }
-        Optional<ChatSession> recent = chatSessionRepository.findFirstByOrderByCreatedAtDesc();
+        Optional<ChatSession> recent = chatSessionService.findLatest();
         return recent.orElse(null);
     }
 

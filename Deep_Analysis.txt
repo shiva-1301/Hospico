@@ -1,0 +1,305 @@
+# HospiCo — Complete Project Deep Analysis
+
+A comprehensive analysis of the **HospiCo** healthcare platform — a full-stack hospital finder and booking application.
+
+---
+
+## 1. Architecture Overview
+
+```mermaid
+graph TB
+  subgraph "Frontend - React 19 SPA"
+    FE["hospico-frontend-main<br/>Vite + TypeScript"]
+    Pages["15 Pages"]
+    Comps["17 Components"]
+    Chat["ChatWidget (AI Chatbot)"]
+    Redux["Redux Toolkit Store"]
+  end
+
+  subgraph "Backend - Spring Boot 3.4.5"
+    API["REST Controllers (13)"]
+    Services["Services (18)"]
+    JWT["JWT Auth Filter"]
+    ChatCtrl["ChatController<br/>(Groq AI)"]
+  end
+
+  subgraph "Data Layer"
+    Mongo[(MongoDB<br/>HospiiCo DB)]
+    Zoho["Zoho Catalyst<br/>(Alternative Provider)"]
+  end
+
+  FE -->|"Axios + JWT"| API
+  API --> JWT
+  JWT --> Services
+  ChatCtrl -->|"HTTP"| Groq["Groq LLM API"]
+  Services -->|"Strategy Pattern"| Mongo
+  Services -.->|"Alt. Provider"| Zoho
+```
+
+| Layer | Technology | Details |
+|:------|:-----------|:--------|
+| **Frontend** | React 19 + TypeScript + Vite | SPA with MUI, Tailwind, Framer Motion |
+| **Backend** | Spring Boot 3.4.5 + Java 17 | REST API, JWT auth, 13 controllers |
+| **Database** | MongoDB (primary) | Collection-based, via MongoTemplate |
+| **AI Chatbot** | Groq LLM API | Symptom analysis, hospital recommendations |
+| **Mobile** | Capacitor 7.x | Hybrid mobile app wrapping the React SPA |
+| **Deployment** | Render / Zoho Catalyst | Docker, Nginx, AppSail |
+
+---
+
+## 2. Project File Structure
+
+```
+Hospico/
+├── backend/                          # Spring Boot API (92 files)
+│   ├── src/main/java/.../backend/
+│   │   ├── config/                   # 7 config classes
+│   │   ├── controller/               # 13 REST controllers
+│   │   ├── dto/                      # 14 Data Transfer Objects
+│   │   ├── entity/                   # 8 entities + 1 enum
+│   │   ├── exception/                # Global error handler
+│   │   ├── filter/                   # JWT authentication filter
+│   │   ├── repository/               # 2 MongoDB repositories
+│   │   └── service/                  # 18 service classes
+│   ├── src/main/resources/
+│   │   └── application.yml           # Main config (MongoDB, Groq, Zoho)
+│   ├── pom.xml                       # Maven deps (Spring Boot, MongoDB, JWT, Zoho SDK)
+│   ├── Dockerfile                    # Backend container
+│   └── clinics.json                  # 87KB seed data
+│
+├── hospico-frontend-main/            # React frontend (86 files)
+│   ├── src/
+│   │   ├── pages/                    # 15 page components
+│   │   ├── components/               # 17 reusable components
+│   │   ├── features/                 # Auth slice, Chatbot, Medical Records
+│   │   ├── hooks/                    # useAuthInitializer, useKeepAlive
+│   │   ├── store/                    # Redux store config
+│   │   ├── context/                  # ThemeContext (dark mode)
+│   │   ├── api.ts                    # Axios client + interceptors
+│   │   ├── App.tsx                   # Route definitions + layout
+│   │   └── main.tsx                  # Entry point (Redux Provider)
+│   ├── package.json                  # npm deps
+│   ├── vite.config.ts                # Vite build config
+│   ├── Dockerfile                    # Frontend container (Nginx)
+│   └── nginx.conf                    # Reverse proxy config
+│
+├── chabtot_Relevent/                 # Chatbot reference files (13 files)
+├── docker-compose.yml                # 3-service orchestration
+├── render.yaml                       # Render deployment blueprint
+├── catalyst.json                     # Zoho Catalyst project config
+└── tech_info                         # Technical documentation
+```
+
+---
+
+## 3. Backend Deep Dive
+
+### 3.1 Entities (Data Models)
+
+| Entity | Key Fields | Storage | Notes |
+|:-------|:-----------|:--------|:------|
+| [User](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/entity/User.java) | id, name, email, phone, password, age, gender, role | MongoDB `users` | Uses Lombok `@Getter/@Setter` |
+| [Clinic](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/entity/Clinic.java) | id, name, address, city, lat/lng, specializations, phone, timings, rating, doctors, imageUrl | MongoDB `clinics` | Embeds doctors + specializations |
+| [Doctor](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/entity/Doctor.java) | id, name, qualifications, specialization, experience, biography, fees, imageUrl | Embedded in Clinic | `@JsonBackReference` to Clinic |
+| [Appointment](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/entity/Appointment.java) | id, userId, clinicId, doctorId, appointmentTime, status, patient details | MongoDB `appointments` | `@Document`, stores IDs as strings |
+| [ChatSession](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/entity/ChatSession.java) | sessionId, currentStep, symptom, specialization, clinicId, doctorId, selectedDate/Time, patient info | MongoDB `chat_sessions` | State machine for booking flow |
+| [MedicalRecord](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/entity/MedicalRecord.java) | id, name, type, size, category, data (byte[]), uploadDate | Via service layer | File upload with `@JsonProperty(WRITE_ONLY)` |
+| [Review](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/entity/Review.java) | id, rating, comment, createdAt, userId, hospitalId, doctorId | Via service layer | Lightweight ID references |
+| [Specialization](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/entity/Specialization.java) | id, specialization | Via service layer | Manual getter/setter |
+| [Role](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/entity/Role.java) | USER, HOSPITAL, ADMIN | Enum | 3 roles |
+
+### 3.2 Service Layer — Strategy Pattern
+
+The backend uses a **provider-switchable** data layer:
+
+```mermaid
+graph LR
+  subgraph Interfaces
+    DS["DataStoreService"]
+    US["UserStoreService"]
+  end
+  subgraph "Mongo Provider"
+    MDS["MongoDataStoreService"]
+    MUS["MongoUserService"]
+  end
+  subgraph "Zoho Provider"
+    ZDS["ZohoDataStoreService"]
+    ZUS["ZohoUserService"]
+  end
+  DS --> MDS
+  DS --> ZDS
+  US --> MUS
+  US --> ZUS
+```
+
+Switched via `data.store.provider` property (default: `mongo`), using `@ConditionalOnProperty`.
+
+| Service | Lines | Purpose |
+|:--------|:------|:--------|
+| [MongoDataStoreService](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/service/MongoDataStoreService.java) | 314 | SQL-like query parsing → MongoDB Criteria, CRUD ops |
+| [MongoUserService](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/service/MongoUserService.java) | 138 | User CRUD, password encoding, Document→UserData mapping |
+| [ClinicService](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/service/ClinicService.java) | 420 | Filtering, geo-distance sorting, specialization matching |
+| [AppointmentService](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/service/AppointmentService.java) | 172 | Booking, enriched response DTOs, user/clinic/doctor joins |
+| [JwtService](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/service/JwtService.java) | 73 | HMAC-SHA256 JWT generation/validation, 7-day expiry |
+| [MongoSequenceService](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/service/MongoSequenceService.java) | — | Auto-incrementing IDs for MongoDB |
+
+### 3.3 REST API Controllers
+
+| Controller | Base Path | Key Endpoints |
+|:-----------|:----------|:--------------|
+| [LoginController](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/controller/LoginController.java) | `/api/auth/login` | `POST` — JWT login |
+| [SignupController](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/controller/SignupController.java) | `/api/auth/signup` | `POST` — User registration |
+| [ClinicController](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/controller/ClinicController.java) | `/api/clinics` | `GET` filtered, `/nearby`, `/sorted-by-distance`, `/id`, `POST`, `DELETE` |
+| [AppointmentController](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/controller/AppointmentController.java) | `/api/appointments` | `POST` book, `GET /user/{id}`, `GET /clinic/{id}`, `DELETE /{id}` |
+| [DoctorController](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/controller/DoctorController.java) | `/api/doctors` | Doctor CRUD |
+| [ChatController](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/controller/ChatController.java) | `/api/chat` | `POST` — AI chat, `/action` — booking flow actions (**717 lines**) |
+| [UserController](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/controller/UserController.java) | `/api/users` | Profile management (authenticated) |
+| [MedicalRecordController](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/controller/MedicalRecordController.java) | `/api/medical-records` | File upload/download |
+| [HealthController](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/controller/HealthController.java) | `/api/health` | Health check for deployments |
+| [ReviewController](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/controller/ReviewController.java) | `/api/reviews` | Hospital reviews |
+| [SpecializationController](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/controller/SpecializationController.java) | `/api/specializations` | Specialization listing |
+
+### 3.4 Security & Auth
+
+- [SecurityConfig](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/config/SecurityConfig.java) — Stateless JWT sessions, CORS configurable via `ENABLE_SPRING_CORS` env var
+- [JwtAuthenticationFilter](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/filter/JwtAuthenticationFilter.java) — Extracts `Bearer` tokens, validates via [JwtService](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/service/JwtService.java#16-74)
+- **Public endpoints**: auth, clinics, appointments, chat, health, swagger
+- **Protected endpoints**: `/api/users/**` (authenticated only)
+
+### 3.5 AI Chatbot (ChatController — 717 lines)
+
+The largest controller implements an **AI-powered medical assistant**:
+
+- **LLM Integration**: Groq API (`groq.api.key` env var)
+- **Symptom Analysis**: Detects symptom keywords → sends to LLM for specialization mapping
+- **Hospital Recommendations**: Matches specializations to clinic database, geo-sorted
+- **Multi-step Booking Flow**: Via [ChatSession](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/entity/ChatSession.java#13-50) state machine (symptom → hospital → doctor → date → time → confirm)
+- **Multi-language Support**: Language code detection + translation
+- **Fuzzy Matching**: Levenshtein distance for specialization normalization
+
+### 3.6 Configuration
+
+[application.yml](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/resources/application.yml):
+- **MongoDB**: `MONGODB_URI` (default: `mongodb://localhost:27017/HospiiCo`)
+- **Server Port**: `8080` (configurable via `PORT` or `X_ZOHO_CATALYST_LISTEN_PORT`)
+- **Data Provider**: `DATA_STORE_PROVIDER` (default: `mongo`, option: `zoho`)
+- **Groq API**: `GROQ_API_KEY` for AI chatbot
+- **Zoho Catalyst**: Project ID, Client ID/Secret, Refresh Token
+
+---
+
+## 4. Frontend Deep Dive
+
+### 4.1 Tech Stack
+
+| Category | Technology | Version |
+|:---------|:-----------|:--------|
+| Framework | React | 19.1.1 |
+| Language | TypeScript | 5.9.3 |
+| Bundler | Vite | 5.4.10 |
+| State | Redux Toolkit + Redux Persist | Latest |
+| UI Library | MUI (Material UI) | 7.3.4 |
+| CSS | Tailwind CSS 4.x + styled-components | — |
+| Animations | Framer Motion | 12.x |
+| HTTP Client | Axios | 1.12.2 |
+| Routing | react-router-dom | 7.9.3 |
+| Icons | Lucide React | 0.545.0 |
+| Mobile | Capacitor (Android + Geolocation) | 7.x |
+
+### 4.2 Page Routes & Components
+
+| Route | Page Component | Auth Required | Purpose |
+|:------|:---------------|:--------------|:--------|
+| `/login` | [Login.tsx](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/pages/Login.tsx) | No | User authentication |
+| `/signup` | [Signup.tsx](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/pages/Signup.tsx) | No | User registration |
+| `/partner-login` | [PartnerLogin.tsx](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/pages/PartnerLogin.tsx) | No | Hospital admin login |
+| `/dashboard` | [Dashboard.tsx](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/pages/Dashboard.tsx) | ✅ | Main user hub |
+| `/find-hospitals` | [FindHospitals.tsx](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/pages/FindHospitals.tsx) | No | Search + filter clinics |
+| `/find-hospital/:id` | [HospitalProfile.tsx](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/pages/HospitalProfile.tsx) | No | Hospital details, doctors, reviews |
+| `/my-appointments` | [MyAppointments.tsx](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/pages/MyAppointments.tsx) | ✅ | View/manage bookings |
+| `/reports` | [MedicalReports.tsx](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/pages/MedicalReports.tsx) | ✅ | Medical records upload/view |
+| `/profile` | [Profile.tsx](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/pages/Profile.tsx) | ✅ | Edit user details |
+| `/emergency` | [Emergency.tsx](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/pages/Emergency.tsx) | No | Emergency contacts |
+| `/` | Dashboard | No | Homepage / Dashboard |
+
+### 4.3 Key Components
+
+| Component | Purpose |
+|:----------|:--------|
+| [Navbar](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/components/Navbar.tsx) | Global navigation with logo and auth links |
+| [ChatWidget](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/features/chatbot/src/components/ChatWidget.tsx) | AI chatbot widget (53KB, feature-rich) |
+| [ProtectedRoute](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/components/ProtectedRoute.tsx) | Auth guard for protected pages |
+| [HospitalCard](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/components/HospitalCard.tsx) | Hospital listing card |
+| [AppointmentBooking](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/components/AppointmentBooking.tsx) | Booking form modal |
+| [NearbyHospitals](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/components/NearbyHospitals.tsx) | Geo-sorted hospital list |
+| [ImageSlider](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/components/ImageSlider.tsx) | Image carousel |
+| [ThemeToggle](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/components/ThemeToggle.tsx) | Dark/Light mode toggle |
+| [OfflineScreen](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/components/OfflineScreen.tsx) | Offline connectivity screen |
+| [FullScreenLoader](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/components/FullScreenLoader.tsx) | Loading spinner during auth init |
+
+### 4.4 State Management
+
+[store.ts](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/store/store.ts) — Redux store with 2 slices:
+
+1. **`auth`** ([authSlice.ts](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/features/auth/authSlice.ts)) — Login/Signup async thunks, JWT stored in `localStorage`, persisted via `redux-persist`
+2. **`medicalRecords`** — Medical records management
+
+### 4.5 API Client
+
+[api.ts](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/api.ts) — Axios instance with:
+- **Request interceptor**: Attaches `Bearer` JWT from `localStorage`
+- **Response interceptor**: Error logging
+- **`apiRequest<T>`**: Generic typed API helper with detailed error mapping (400→duplicate email, 401→credentials, etc.)
+- **[downloadFile](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/api.ts#110-130)**: Blob download (for medical records)
+
+---
+
+## 5. Infrastructure & Deployment
+
+### Docker Setup
+
+[docker-compose.yml](file:///c:/Users/chunk/Desktop/Qod/Hospico/docker-compose.yml) — 3 services:
+1. **PostgreSQL 13** (legacy, port 5432)
+2. **Backend** (port 8080, Spring Boot)
+3. **Frontend** (port 3000, Nginx serving React build)
+
+### Deployment Targets
+
+| Platform | Config File | Purpose |
+|:---------|:-----------|:--------|
+| **Render** | [render.yaml](file:///c:/Users/chunk/Desktop/Qod/Hospico/render.yaml) | Cloud hosting (frontend + backend) |
+| **Zoho Catalyst** | [catalyst.json](file:///c:/Users/chunk/Desktop/Qod/Hospico/catalyst.json), [app-sail-config.json](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/app-sail-config.json) | AppSail deployment |
+| **Docker Hub** | [Dockerfile](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/Dockerfile) (×2) | Container images |
+
+### Environment Variables
+
+| Variable | Used By | Purpose |
+|:---------|:--------|:--------|
+| `MONGODB_URI` | Backend | MongoDB connection string |
+| `GROQ_API_KEY` | Backend | AI chatbot LLM key |
+| `DATA_STORE_PROVIDER` | Backend | `mongo` or `zoho` |
+| `ZOHO_CATALYST_*` | Backend | Zoho Catalyst credentials (4 vars) |
+| `ENABLE_SPRING_CORS` | Backend | Toggle Spring CORS (vs. infrastructure CORS) |
+| `CORS_ALLOWED_ORIGINS` | Backend | Allowed frontend origins |
+| `VITE_API_BASE_URL` | Frontend | Backend API URL |
+
+---
+
+## 6. Key Observations & Notes
+
+> [!IMPORTANT]
+> The project has **migrated from PostgreSQL to MongoDB** but the [docker-compose.yml](file:///c:/Users/chunk/Desktop/Qod/Hospico/docker-compose.yml) and [tech_info](file:///c:/Users/chunk/Desktop/Qod/Hospico/tech_info) documentation still reference PostgreSQL. The actual active database is MongoDB as confirmed by [application.yml](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/resources/application.yml) and the `spring-boot-starter-data-mongodb` dependency.
+
+> [!WARNING]
+> The JWT secret key is **hardcoded** in [JwtService.java](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/service/JwtService.java). This should be moved to an environment variable for production security.
+
+> [!NOTE]
+> The `chabtot_Relevent/` directory contains reference/backup copies of chatbot-related files used during development. These are not part of the active codebase.
+
+### Architecture Highlights
+- **Strategy Pattern** for data storage — clean swap between MongoDB and Zoho Catalyst
+- **AI-powered chatbot** with multi-step conversational booking
+- **Capacitor** integration enables wrapping the React SPA as a native Android app
+- **Offline support** with [ConnectivityHandler](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/App.tsx#130-153) component
+- **Dark mode** via `ThemeContext`
+- **Keep-alive hook** (`useKeepAlive`) to prevent Render free-tier cold starts

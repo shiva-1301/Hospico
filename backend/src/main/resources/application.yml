@@ -1,3 +1,8 @@
+# Zoho Data Store settings (credentials in application-zoho.properties)
+zoho:
+  cloudscale:
+    collection: users
+
 server:
   port: ${X_ZOHO_CATALYST_LISTEN_PORT:${PORT:8080}}
   address: 0.0.0.0
@@ -21,14 +26,12 @@ spring:
       enabled: false
   jmx:
     enabled: false
-  data:
-    mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/HospiiCo}
-      database: ${MONGODB_DB:HospiiCo}
-
-data:
-  store:
-    provider: ${DATA_STORE_PROVIDER:mongo}
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
 
 management:
   endpoints:

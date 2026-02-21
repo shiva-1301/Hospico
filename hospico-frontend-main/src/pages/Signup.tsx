@@ -23,6 +23,7 @@ const Signup = () => {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Do not send role, backend will default to USER
     const resultAction = await dispatch(signup({ email, password, name, phone }));
 
     if (signup.fulfilled.match(resultAction)) {

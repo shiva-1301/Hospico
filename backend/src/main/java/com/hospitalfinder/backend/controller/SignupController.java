@@ -42,7 +42,8 @@ public class SignupController {
                     .body(new LoginResponse(false, "Email already registered", null, null, null, null, null));
         }
 
-        Role role = request.getRole() != null ? request.getRole() : Role.USER;
+        // Always default role to USER, ignore any provided role
+        Role role = Role.USER;
         UserData userData = userStoreService.createUser(
                 request.getName(),
                 request.getEmail(),

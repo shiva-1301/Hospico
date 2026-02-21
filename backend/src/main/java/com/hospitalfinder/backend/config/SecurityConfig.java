@@ -31,35 +31,38 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         boolean enableSpringCors = Boolean.parseBoolean(
-            environment.getProperty("ENABLE_SPRING_CORS", "false"));
+                environment.getProperty("ENABLE_SPRING_CORS", "true"));
 
         if (enableSpringCors) {
             http.cors(cors -> cors.configurationSource(corsConfigurationSource()));
         } else {
-            // CORS handled by Catalyst AppSail infrastructure - disabled here to prevent duplicate headers
+            // CORS handled by Catalyst AppSail infrastructure - disabled here to prevent
+            // duplicate headers
             http.cors(AbstractHttpConfigurer::disable);
         }
 
         http
-            .csrf(AbstractHttpConfigurer::disable)
-            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                // CORS preflight - MUST BE FIRST
-                .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                // Health check endpoints
-                .requestMatchers("/", "/api/health", "/health/**", "/actuator/**", "/actuator/health")
-                .permitAll()
-                // Auth endpoints
-                .requestMatchers("/api/auth/signup", "/api/auth/login", "/api/users/me").permitAll()
-                // Public API endpoints
-                .requestMatchers("/api/clinics/**", "/api/specializations/**", "/api/doctors/**", "/api/appointments/**", "/api/medical-records/**", "/api/chat", "/api/chat/action").permitAll()
-                .requestMatchers("/api/requests/**").permitAll()
-                // Documentation
-                .requestMatchers("/error", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                // Protected endpoints
-                .requestMatchers("/api/users/**").authenticated()
-                .anyRequest().authenticated())
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        // CORS preflight - MUST BE FIRST
+                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+                        // Health check endpoints
+                        .requestMatchers("/", "/api/health", "/health/**", "/actuator/**", "/actuator/health")
+                        .permitAll()
+                        // Auth endpoints
+                        .requestMatchers("/api/auth/signup", "/api/auth/login", "/api/users/me").permitAll()
+                        // Public API endpoints
+                        .requestMatchers("/api/clinics/**", "/api/specializations/**", "/api/doctors/**",
+                                "/api/appointments/**", "/api/medical-records/**", "/api/chat", "/api/chat/action")
+                        .permitAll()
+                        .requestMatchers("/api/requests/**").permitAll()
+                        // Documentation
+                        .requestMatchers("/error", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // Protected endpoints
+                        .requestMatchers("/api/users/**").authenticated()
+                        .anyRequest().authenticated())
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -80,7 +83,7 @@ public class SecurityConfig {
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
         config.setAllowCredentials(true);
-        
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
