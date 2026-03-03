@@ -8,10 +8,10 @@ This application is configured for deployment to Render using the `render.yaml` 
 
 ### Services Included:
 1. **Frontend** - React application (hospital-finder-frontend)
-   https://hospico.onrender.com/
+   https://www.hospiico.onslate.com/
 
 2. **Backend** - Spring Boot API (hospital-finder-backend)
-   https://hospital-finder-backend-ls4y.onrender.com/
+   https://hospiico-backend-50037434927.development.catalystappsail.in/
     
 4. **Database** - PostgreSQL (hospital-db)
 

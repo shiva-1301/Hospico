@@ -1,3 +1,0 @@
-[submodule "hospico-frontend-main/src/features/chatbot"]
-	path = frontend/src/features/chatbot
-	url = https://github.com/CRVPT-10/Hospiico-Chatbot.git
