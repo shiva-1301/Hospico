@@ -1,0 +1,40 @@
+# HospiCo: Project Technical Summary
+
+This document summarizes the key technical challenges resolved and the implementation strategies used during this session to align the HospiCo backend with the Zoho Catalyst environment and finalize the Vijayawada hospital data.
+
+## 1. Query & Data Retrieval Optimization
+
+### Challenge: Specialization Mapping
+The `doctors` table in Zoho Catalyst uses a `specialization_id` foreign key, while the application often handles specializations as human-readable strings.
+- **Solution**: We updated [DoctorService](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/service/DoctorService.java#19-150) to resolve specialization names to their corresponding IDs during insertion.
+- **Clinic-Doctor Alignment**: We identified that [ClinicService](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/service/ClinicService.java#25-475) was fetching doctors directly without mapping these IDs back to names, causing a "General Practitioner" fallback in the UI. We resolved this by injecting [DoctorService](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/service/DoctorService.java#19-150) into [ClinicService](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/service/ClinicService.java#25-475) to reuse the robust mapping logic.
+
+### Challenge: ID Precision Loss
+Zoho Catalyst's `ROWID` values are 17-digit numbers that exceed the precision limit of standard JavaScript numbers, causing IDs to be corrupted when sent to the frontend.
+- **Solution**: We updated the [ClinicSummaryDTO](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/dto/ClinicSummaryDTO.java#12-54), [DoctorDTO](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/dto/DoctorDTO.java#5-16), and related entity fields to handle IDs as **Strings** instead of **Longs**. This ensures the full precision is maintained across the network and in the React frontend.
+
+## 2. Authentication & Access Resolution
+
+### Token & unauthorized Access (403 Forbidden)
+While seeding data, we encountered `403 Forbidden` errors even for endpoints marked as `permitAll()`.
+- **Base Path Matching**: We discovered that Spring Security's `requestMatchers("/api/clinics/**")` only permits sub-paths, not the base path `/api/clinics` itself.
+- **Fix**: Updated [SecurityConfig.java](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/config/SecurityConfig.java) to explicitly permit both the base paths and the wildcard paths:
+  ```java
+  .requestMatchers("/api/clinics", "/api/clinics/**").permitAll()
+  ```
+
+### CORS Configuration
+To prevent duplicate CORS headers when deploying to Zoho Catalyst (which handles CORS at the infrastructure level), we added a toggle.
+- **Fix**: Set the default value of `ENABLE_SPRING_CORS` to `false` in [SecurityConfig.java](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/src/main/java/com/hospitalfinder/backend/config/SecurityConfig.java), allowing the infrastructure to manage cross-origin requests without interference.
+
+## 3. API-Based Data Insertion
+
+### Strategy: Scalable Seeding
+Instead of manual SQL inserts, we used the application's own REST API to ensure all business logic (like ID resolution and validation) was applied.
+- **Batched Seeding**: Created five specialized Python scripts (`seed_batch_1.py` through [5.py](file:///c:/Users/chunk/Desktop/Qod/Hospico/backend/seed_batch_5.py)).
+- **Data Volume**: Successfully inserted over **80 hospitals** in Vijayawada, complete with addresses, ratings, coordinates, and nested specialization data.
+- **Validation**: Each batch was verified via `curl` and frontend checks to ensure data integrity and proper display.
+
+## 4. Schema Alignment
+- **Doctor Entity**: Aligned the [Doctor](file:///c:/Users/chunk/Desktop/Qod/Hospico/hospico-frontend-main/src/pages/HospitalProfile.tsx#10-19) object with the actual Zoho table columns, omitting unsupported fields (like `qualifications` and `biography`) that were causing `INVALID_INPUT` errors during insertion.
+- **Health Checks**: Ensured that the root `/` and `/api/health` endpoints are publicly accessible to satisfy Catalyst's AppSail health monitoring.

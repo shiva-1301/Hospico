@@ -31,7 +31,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         boolean enableSpringCors = Boolean.parseBoolean(
-                environment.getProperty("ENABLE_SPRING_CORS", "true"));
+                environment.getProperty("ENABLE_SPRING_CORS", "false"));
 
         if (enableSpringCors) {
             http.cors(cors -> cors.configurationSource(corsConfigurationSource()));
@@ -53,11 +53,15 @@ public class SecurityConfig {
                         // Auth endpoints
                         .requestMatchers("/api/auth/signup", "/api/auth/login", "/api/users/me").permitAll()
                         // Public API endpoints
-                        .requestMatchers("/api/clinics/**", "/api/specializations/**", "/api/doctors/**",
-                                "/api/appointments/**", "/api/medical-records/**", "/api/chat", "/api/chat/action",
-                                "/api/reviews/**")
+                        .requestMatchers("/api/clinics", "/api/clinics/**",
+                                "/api/specializations", "/api/specializations/**",
+                                "/api/doctors", "/api/doctors/**",
+                                "/api/appointments", "/api/appointments/**",
+                                "/api/medical-records", "/api/medical-records/**",
+                                "/api/chat", "/api/chat/action",
+                                "/api/reviews", "/api/reviews/**")
                         .permitAll()
-                        .requestMatchers("/api/requests/**").permitAll()
+                        .requestMatchers("/api/requests", "/api/requests/**").permitAll()
                         // Documentation
                         .requestMatchers("/error", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // Protected endpoints

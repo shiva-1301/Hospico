@@ -2,17 +2,20 @@ package com.hospitalfinder.backend.service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hospitalfinder.backend.dto.AppointmentRequestDTO;
 import com.hospitalfinder.backend.dto.AppointmentResponseDTO;
 import com.hospitalfinder.backend.dto.ClinicResponseDTO;
@@ -28,15 +31,16 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class AppointmentService {
 
+        private static final DateTimeFormatter DATASTORE_DATETIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
         private final DataStoreService dataStoreService;
         private final UserStoreService userStoreService;
         private final ClinicService clinicService;
         private final DoctorService doctorService;
-        private final ObjectMapper objectMapper = new ObjectMapper();
 
         public AppointmentResponseDTO book(AppointmentRequestDTO dto) {
-                // Validate user exists
-                UserData userData = userStoreService.findById(dto.getUserId());
+                // Validate user and resolve FK-safe user ROWID
+                UserData userData = resolveBookingUser(dto.getUserId());
                 if (userData == null) {
                         throw new RuntimeException("User not found");
                 }
@@ -61,31 +65,25 @@ public class AppointmentService {
                         throw new RuntimeException("Time slot already booked");
                 }
 
-                // Generate unique ID
-                String appointmentId = UUID.randomUUID().toString();
-
-                // Insert into CloudScale NoSQL
+                // Insert into CloudScale Data Store using actual table columns
                 Map<String, Object> values = new HashMap<>();
-                values.put("id", appointmentId);
-                values.put("user_id", String.valueOf(dto.getUserId()));
-                values.put("clinic_id", String.valueOf(dto.getClinicId()));
-                values.put("doctor_id", doctorId);
-                values.put("appointment_time", appointmentTime.toString());
+                values.put("user_id", userData.getId());
+                values.put("clinic_id", dto.getClinicId());
+                values.put("doctor_id", dto.getDoctorId());
+                values.put("appointment_date", appointmentTime.toLocalDate().toString());
+                values.put("time_slot", appointmentTime.toLocalTime().withSecond(0).withNano(0).toString());
                 values.put("status", "BOOKED");
-                values.put("patient_name", dto.getPatientName());
-                values.put("patient_age", dto.getPatientAge());
-                values.put("patient_gender", dto.getPatientGender());
-                values.put("patient_phone", dto.getPatientPhone());
-                values.put("patient_email", dto.getPatientEmail());
-                values.put("reason", dto.getReason());
+                values.put("notes", dto.getReason());
+                values.put("created_at", LocalDateTime.now().format(DATASTORE_DATETIME_FORMAT));
 
-                dataStoreService.insertRecord("appointments", values);
-                log.info("✅ Appointment saved with ID: {}", appointmentId);
+                JsonNode createdNode = dataStoreService.insertRecord("appointments", values);
+                String appointmentId = extractAppointmentId(createdNode);
+                log.info("✅ Appointment saved with ROWID: {}", appointmentId);
 
                 // Build response
                 Appointment saved = new Appointment();
                 saved.setId(appointmentId);
-                saved.setUserId(String.valueOf(dto.getUserId()));
+                saved.setUserId(String.valueOf(userData.getId()));
                 saved.setClinicId(String.valueOf(dto.getClinicId()));
                 saved.setDoctorId(doctorId);
                 saved.setAppointmentTime(appointmentTime);
@@ -100,12 +98,73 @@ public class AppointmentService {
                 return buildAppointmentResponse(saved);
         }
 
+        private UserData resolveBookingUser(Long requestUserId) {
+                try {
+                        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                        if (authentication != null && authentication.getName() != null
+                                        && !"anonymousUser".equalsIgnoreCase(authentication.getName())) {
+                                UserData authUser = userStoreService.findByEmail(authentication.getName());
+                                if (authUser != null && authUser.getId() != null) {
+                                        return authUser;
+                                }
+                        }
+                } catch (Exception e) {
+                        log.warn("Could not resolve booking user from authentication context", e);
+                }
+
+                if (requestUserId != null) {
+                        return userStoreService.findById(requestUserId);
+                }
+                return null;
+        }
+
         public List<AppointmentResponseDTO> getAppointmentsByUser(Long userId) {
+                Long resolvedUserId = resolveAuthenticatedUserId();
+                Long effectiveUserId = resolvedUserId != null ? resolvedUserId : userId;
+
+                if (effectiveUserId == null) {
+                        return new ArrayList<>();
+                }
+
                 List<Appointment> appointments = fetchAppointments(
-                                "SELECT * FROM appointments WHERE user_id = '" + userId + "'");
-                return appointments.stream()
+                                "SELECT * FROM appointments WHERE user_id = '" + effectiveUserId + "'");
+
+                if (appointments.isEmpty()) {
+                        appointments = fetchAppointments(
+                                        "SELECT * FROM appointments WHERE user_id = " + effectiveUserId);
+                }
+
+                if (appointments.isEmpty() && userId != null && !userId.equals(effectiveUserId)) {
+                        appointments = fetchAppointments(
+                                        "SELECT * FROM appointments WHERE user_id = '" + userId + "'");
+                }
+
+                Map<String, Appointment> uniqueById = new LinkedHashMap<>();
+                for (Appointment appointment : appointments) {
+                        if (appointment.getId() != null) {
+                                uniqueById.putIfAbsent(appointment.getId(), appointment);
+                        }
+                }
+
+                return uniqueById.values().stream()
                                 .map(this::buildAppointmentResponse)
                                 .collect(Collectors.toList());
+        }
+
+        private Long resolveAuthenticatedUserId() {
+                try {
+                        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                        if (authentication != null && authentication.getName() != null
+                                        && !"anonymousUser".equalsIgnoreCase(authentication.getName())) {
+                                UserData authUser = userStoreService.findByEmail(authentication.getName());
+                                if (authUser != null) {
+                                        return authUser.getId();
+                                }
+                        }
+                } catch (Exception e) {
+                        log.warn("Could not resolve authenticated user id for appointment lookup", e);
+                }
+                return null;
         }
 
         public List<AppointmentResponseDTO> getAppointmentsByClinic(Long clinicId) {
@@ -135,7 +194,7 @@ public class AppointmentService {
 
         public void deleteAppointment(String id) {
                 try {
-                        dataStoreService.executeQuery("DELETE FROM appointments WHERE id = '" + id + "'");
+                        dataStoreService.executeQuery("DELETE FROM appointments WHERE ROWID = '" + id + "'");
                 } catch (Exception e) {
                         log.error("Failed to delete appointment {}", id, e);
                         throw new RuntimeException("Failed to delete appointment", e);
@@ -146,18 +205,8 @@ public class AppointmentService {
                 try {
                         Map<String, Object> data = new HashMap<>();
                         data.put("status", status);
-                        // Query the ROWID first because updateRecord needs it
-                        JsonNode result = dataStoreService
-                                        .executeQuery("SELECT ROWID FROM appointments WHERE id = '" + id + "'");
-                        if (result != null && result.isArray() && result.size() > 0) {
-                                JsonNode rowNode = result.get(0).has("appointments") ? result.get(0).get("appointments")
-                                                : result.get(0);
-                                Long rowId = rowNode.get("ROWID").asLong();
-                                dataStoreService.updateRecord("appointments", rowId, data);
-                        } else {
-                                throw new RuntimeException("Appointment not found");
-                        }
-                        return fetchAppointments("SELECT * FROM appointments WHERE id = '" + id + "'").stream()
+                        dataStoreService.updateRecord("appointments", Long.parseLong(id), data);
+                        return fetchAppointments("SELECT * FROM appointments WHERE ROWID = '" + id + "'").stream()
                                         .map(this::buildAppointmentResponse)
                                         .findFirst()
                                         .orElseThrow(() -> new RuntimeException("Appointment not found after update"));
@@ -196,28 +245,43 @@ public class AppointmentService {
 
         private Appointment mapToAppointment(JsonNode node) {
                 Appointment a = new Appointment();
-                a.setId(getTextOrNull(node, "id"));
+                String id = getTextOrNull(node, "id");
+                if (id == null) {
+                        id = getTextOrNull(node, "ROWID");
+                }
+                a.setId(id);
                 a.setUserId(getTextOrNull(node, "user_id"));
                 a.setClinicId(getTextOrNull(node, "clinic_id"));
                 a.setDoctorId(getTextOrNull(node, "doctor_id"));
                 a.setStatus(getTextOrNull(node, "status"));
-                a.setPatientName(getTextOrNull(node, "patient_name"));
-                a.setPatientGender(getTextOrNull(node, "patient_gender"));
-                a.setPatientPhone(getTextOrNull(node, "patient_phone"));
-                a.setPatientEmail(getTextOrNull(node, "patient_email"));
-                a.setReason(getTextOrNull(node, "reason"));
+                a.setReason(getTextOrNull(node, "notes"));
 
-                if (node.has("patient_age") && !node.get("patient_age").isNull()) {
-                        a.setPatientAge(node.get("patient_age").asInt());
-                }
-                if (node.has("appointment_time") && !node.get("appointment_time").isNull()) {
+                String appointmentDate = getTextOrNull(node, "appointment_date");
+                String timeSlot = getTextOrNull(node, "time_slot");
+                if (appointmentDate != null && timeSlot != null) {
                         try {
-                                a.setAppointmentTime(LocalDateTime.parse(node.get("appointment_time").asText()));
+                                LocalDate date = LocalDate.parse(appointmentDate);
+                                LocalTime time = LocalTime.parse(timeSlot.length() == 5 ? timeSlot + ":00" : timeSlot);
+                                a.setAppointmentTime(LocalDateTime.of(date, time));
                         } catch (Exception e) {
-                                log.warn("Could not parse appointment_time: {}", node.get("appointment_time").asText());
+                                log.warn("Could not parse appointment_date/time_slot: {}/{}", appointmentDate,
+                                                timeSlot);
                         }
                 }
                 return a;
+        }
+
+        private String extractAppointmentId(JsonNode node) {
+                if (node == null || node.isNull()) {
+                        return null;
+                }
+                if (node.has("ROWID") && !node.get("ROWID").isNull()) {
+                        return node.get("ROWID").asText();
+                }
+                if (node.has("id") && !node.get("id").isNull()) {
+                        return node.get("id").asText();
+                }
+                return null;
         }
 
         private String getTextOrNull(JsonNode node, String field) {
@@ -242,10 +306,24 @@ public class AppointmentService {
                 if (appointment.getUserId() != null) {
                         dto.setUserId(appointment.getUserId());
                         try {
-                                Long userIdLong = Long.parseLong(appointment.getUserId());
-                                UserData userData = userStoreService.findById(userIdLong);
+                                UserData userData = userStoreService.findById(Long.parseLong(appointment.getUserId()));
                                 if (userData != null) {
                                         dto.setUserName(userData.getName());
+                                        if (dto.getPatientName() == null || dto.getPatientName().isBlank()) {
+                                                dto.setPatientName(userData.getName());
+                                        }
+                                        if (dto.getPatientEmail() == null || dto.getPatientEmail().isBlank()) {
+                                                dto.setPatientEmail(userData.getEmail());
+                                        }
+                                        if (dto.getPatientPhone() == null || dto.getPatientPhone().isBlank()) {
+                                                dto.setPatientPhone(userData.getPhone());
+                                        }
+                                        if (dto.getPatientAge() == null) {
+                                                dto.setPatientAge(userData.getAge());
+                                        }
+                                        if (dto.getPatientGender() == null || dto.getPatientGender().isBlank()) {
+                                                dto.setPatientGender(userData.getGender());
+                                        }
                                 }
                         } catch (Exception e) {
                                 log.warn("Could not fetch user {}", appointment.getUserId(), e);
@@ -256,8 +334,7 @@ public class AppointmentService {
                 if (appointment.getClinicId() != null) {
                         dto.setClinicId(appointment.getClinicId());
                         try {
-                                Long clinicIdLong = Long.parseLong(appointment.getClinicId());
-                                ClinicResponseDTO clinicDTO = clinicService.getClinicById(clinicIdLong);
+                                ClinicResponseDTO clinicDTO = clinicService.getClinicById(Long.parseLong(appointment.getClinicId()));
                                 if (clinicDTO != null) {
                                         dto.setClinicName(clinicDTO.getName());
                                 }
@@ -270,8 +347,7 @@ public class AppointmentService {
                 if (appointment.getDoctorId() != null) {
                         dto.setDoctorId(appointment.getDoctorId());
                         try {
-                                Long doctorIdLong = Long.parseLong(appointment.getDoctorId());
-                                Doctor doctor = doctorService.findById(doctorIdLong);
+                                Doctor doctor = doctorService.findById(Long.parseLong(appointment.getDoctorId()));
                                 if (doctor != null) {
                                         dto.setDoctorName(doctor.getName());
                                         dto.setDoctorSpecialization(doctor.getSpecialization());
