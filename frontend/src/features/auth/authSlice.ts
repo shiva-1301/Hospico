@@ -35,6 +35,17 @@ export type AuthResponse = {
   token: string;
 };
 
+// Type for /api/users/me response
+type UserProfileResponse = {
+  id: number;
+  email: string;
+  name?: string;
+  phone?: string;
+  age?: number;
+  gender?: string;
+  role?: string;
+};
+
 export const login = createAsyncThunk<AuthResponse, Credentials>(
   "auth/login",
   async (body, { rejectWithValue }) => {
@@ -62,6 +73,19 @@ export const signup = createAsyncThunk<AuthResponse, SignupPayload>(
         body
       );
 
+      return result;
+    } catch (err) {
+      return rejectWithValue((err as Error).message);
+    }
+  }
+);
+
+// Fetch full user profile from /api/users/me (includes name, age, gender, phone)
+export const fetchUserProfile = createAsyncThunk<UserProfileResponse, void>(
+  "auth/fetchUserProfile",
+  async (_, { rejectWithValue }) => {
+    try {
+      const result = await apiRequest<UserProfileResponse>("/api/users/me", "GET");
       return result;
     } catch (err) {
       return rejectWithValue((err as Error).message);
@@ -102,6 +126,12 @@ const authSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
+    // Update user profile data in Redux (e.g. after profile save)
+    setUser: (state, action: PayloadAction<Partial<AuthUser>>) => {
+      if (state.user) {
+        state.user = { ...state.user, ...action.payload };
+      }
+    },
   },
   extraReducers: (builder) => {
     // LOGIN
@@ -119,6 +149,7 @@ const authSlice = createSlice({
             state.user = {
               id: action.payload.id.toString(),
               email: action.payload.email,
+              name: action.payload.name || undefined,
             };
           }
           // Store the JWT token in localStorage
@@ -152,6 +183,7 @@ const authSlice = createSlice({
             state.user = {
               id: action.payload.id.toString(),
               email: action.payload.email,
+              name: action.payload.name || undefined,
             };
           }
           // Store the JWT token in localStorage
@@ -169,8 +201,28 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.initialized = true;
       });
+
+    // FETCH USER PROFILE (fills name, age, gender, phone from /api/users/me)
+    builder
+      .addCase(fetchUserProfile.fulfilled, (state, action: PayloadAction<UserProfileResponse>) => {
+        const data = action.payload;
+        if (data && data.id) {
+          state.user = {
+            id: data.id.toString(),
+            email: data.email || state.user?.email || "",
+            name: data.name || undefined,
+            phone: data.phone || undefined,
+            age: data.age ?? undefined,
+            gender: data.gender || undefined,
+          };
+          state.isAuthenticated = true;
+        }
+      })
+      .addCase(fetchUserProfile.rejected, (_state, action) => {
+        console.warn("Failed to fetch user profile:", action.payload);
+      });
   },
 });
 
-export const { logout, initializeAuth, clearError } = authSlice.actions;
+export const { logout, initializeAuth, clearError, setUser } = authSlice.actions;
 export default authSlice.reducer;

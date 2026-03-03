@@ -1,10 +1,12 @@
 package com.hospitalfinder.backend.service;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.stereotype.Service;
 
@@ -23,7 +25,14 @@ public class ChatSessionService {
     private final DataStoreService dataStoreService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    // In-memory fallback when chat_sessions table doesn't exist in DataStore
+    private final ConcurrentHashMap<String, ChatSession> inMemorySessions = new ConcurrentHashMap<>();
+    private volatile boolean useInMemoryFallback = false;
+
     public Optional<ChatSession> findBySessionId(String sessionId) {
+        if (useInMemoryFallback) {
+            return Optional.ofNullable(inMemorySessions.get(sessionId));
+        }
         try {
             JsonNode result = dataStoreService.findByField("chat_sessions", "session_id", sessionId);
             if (result != null) {
@@ -31,12 +40,17 @@ public class ChatSessionService {
             }
             return Optional.empty();
         } catch (Exception e) {
-            log.error("Error finding chat session by sessionId: {}", sessionId, e);
-            return Optional.empty();
+            log.warn("DataStore chat_sessions lookup failed, switching to in-memory fallback: {}", e.getMessage());
+            useInMemoryFallback = true;
+            return Optional.ofNullable(inMemorySessions.get(sessionId));
         }
     }
 
     public Optional<ChatSession> findLatest() {
+        if (useInMemoryFallback) {
+            return inMemorySessions.values().stream()
+                    .max(Comparator.comparing(s -> s.getCreatedAt() != null ? s.getCreatedAt() : LocalDateTime.MIN));
+        }
         try {
             JsonNode result = dataStoreService.executeQuery("SELECT * FROM chat_sessions");
             if (result != null && result.isArray() && result.size() > 0) {
@@ -59,13 +73,19 @@ public class ChatSessionService {
             }
             return Optional.empty();
         } catch (Exception e) {
-            log.error("Error finding latest chat session", e);
-            return Optional.empty();
+            log.warn("DataStore chat_sessions query failed, switching to in-memory fallback: {}", e.getMessage());
+            useInMemoryFallback = true;
+            return inMemorySessions.values().stream()
+                    .max(Comparator.comparing(s -> s.getCreatedAt() != null ? s.getCreatedAt() : LocalDateTime.MIN));
         }
     }
 
     public ChatSession save(ChatSession session) {
         session.setUpdatedAt(LocalDateTime.now());
+
+        if (useInMemoryFallback) {
+            return saveInMemory(session);
+        }
 
         try {
             // If session has a sessionId, try to find existing
@@ -97,9 +117,22 @@ public class ChatSessionService {
             log.debug("Created new chat session: {}", session.getSessionId());
             return session;
         } catch (Exception e) {
-            log.error("Failed to save chat session", e);
-            throw new RuntimeException("Failed to save chat session", e);
+            log.warn("DataStore chat_sessions save failed, switching to in-memory fallback: {}", e.getMessage());
+            useInMemoryFallback = true;
+            return saveInMemory(session);
         }
+    }
+
+    private ChatSession saveInMemory(ChatSession session) {
+        if (session.getSessionId() == null) {
+            session.setSessionId(UUID.randomUUID().toString());
+        }
+        if (session.getCreatedAt() == null) {
+            session.setCreatedAt(LocalDateTime.now());
+        }
+        inMemorySessions.put(session.getSessionId(), session);
+        log.debug("Saved chat session in-memory: {}", session.getSessionId());
+        return session;
     }
 
     // ── Private Helpers ──────────────────────────────────────────

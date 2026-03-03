@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Edit, File, FileText, Image as ImageIcon, Mail, Phone, Save, User, X } from "lucide-react";
 import { useAppDispatch, type RootState } from "../store/store";
 import { fetchUserRecords } from "../features/medicalRecords/medicalRecordsSlice";
+import { setUser } from "../features/auth/authSlice";
 import { apiRequest } from "../api";
 
 type UserProfile = {
@@ -149,6 +150,13 @@ export default function Profile() {
       const updatedProfile = await apiRequest<UserProfile>("/api/users/me", "PATCH", updateData);
 
       setProfile(updatedProfile);
+      // Keep Redux auth state in sync so ChatWidget etc. see updated profile
+      dispatch(setUser({
+        name: updatedProfile.name || undefined,
+        phone: updatedProfile.phone || undefined,
+        age: updatedProfile.age ?? undefined,
+        gender: updatedProfile.gender || undefined,
+      }));
       setIsEditing(false);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
