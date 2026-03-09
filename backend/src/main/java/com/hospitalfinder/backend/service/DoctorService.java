@@ -1,11 +1,14 @@
 package com.hospitalfinder.backend.service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,14 +24,20 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class DoctorService {
 
+    private static final String DOCTORS_QUERY_TABLE = "doctors";
+    private static final DateTimeFormatter DATASTORE_DATETIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
     private final DataStoreService dataStoreService;
     private final SpecializationService specializationService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Value("${zoho.doctors.table.id:26566000000029739}")
+    private String doctorsTableId;
+
     public Doctor findById(Long id) {
         try {
             // Check if ID is likely a Zoho Row ID (Long)
-            String query = "SELECT * FROM doctors WHERE ROWID = '" + id + "'";
+            String query = "SELECT * FROM " + DOCTORS_QUERY_TABLE + " WHERE ROWID = '" + id + "'";
             JsonNode result = dataStoreService.executeQuery(query);
 
             if (result != null && result.isArray() && result.size() > 0) {
@@ -46,6 +55,9 @@ public class DoctorService {
     public Doctor save(Doctor doctor) {
         Map<String, Object> values = new HashMap<>();
         values.put("name", doctor.getName());
+        String now = LocalDateTime.now().format(DATASTORE_DATETIME_FORMAT);
+        values.put("created_at", now);
+        values.put("updated_at", now);
 
         // Resolve specialization name to ID
         if (doctor.getSpecialization() != null) {
@@ -66,7 +78,7 @@ public class DoctorService {
         // and cause INVALID_INPUT. We must omit them for now.
 
         try {
-            JsonNode result = dataStoreService.insertRecord("doctors", values);
+            JsonNode result = dataStoreService.insertRecord(doctorsTableId, values);
             return mapToDoctor(result);
         } catch (Exception e) {
             log.error("Failed to save doctor", e);
@@ -75,12 +87,12 @@ public class DoctorService {
     }
 
     public List<Doctor> findByClinicId(Long clinicId) {
-        String query = "SELECT * FROM doctors WHERE clinic_id = '" + clinicId + "'";
+        String query = "SELECT * FROM " + DOCTORS_QUERY_TABLE + " WHERE clinic_id = '" + clinicId + "'";
         return fetchDoctors(query);
     }
 
     public List<Doctor> findByClinicIdAndSpecialization(Long clinicId, String specialization) {
-        String query = "SELECT * FROM doctors WHERE clinic_id = '" + clinicId + "'";
+        String query = "SELECT * FROM " + DOCTORS_QUERY_TABLE + " WHERE clinic_id = '" + clinicId + "'";
         // Perform client-side filter for case-insensitive specialization to be safe
         List<Doctor> all = fetchDoctors(query);
         return all.stream()
@@ -90,7 +102,7 @@ public class DoctorService {
 
     public void deleteDoctor(Long id) {
         try {
-            dataStoreService.executeQuery("DELETE FROM doctors WHERE ROWID = '" + id + "'");
+            dataStoreService.executeQuery("DELETE FROM " + DOCTORS_QUERY_TABLE + " WHERE ROWID = '" + id + "'");
         } catch (Exception e) {
             log.error("Failed to delete doctor", e);
             throw new RuntimeException("Failed to delete doctor", e);
@@ -99,9 +111,35 @@ public class DoctorService {
 
     public Doctor updateDoctor(Long id, Map<String, Object> data) {
         try {
-            JsonNode result = dataStoreService.updateRecord("doctors", id, data);
+            Map<String, Object> updates = new HashMap<>();
+
+            if (data.containsKey("name") && data.get("name") != null) {
+                updates.put("name", data.get("name"));
+            }
+
+            if (data.containsKey("clinic_id") && data.get("clinic_id") != null) {
+                updates.put("clinic_id", data.get("clinic_id"));
+            }
+
+            if (data.containsKey("specialization_id") && data.get("specialization_id") != null) {
+                updates.put("specialization_id", data.get("specialization_id"));
+            }
+
+            if (data.containsKey("specialization") && data.get("specialization") != null) {
+                String specializationName = String.valueOf(data.get("specialization"));
+                var spec = specializationService.getSpecializationByName(specializationName);
+                if (spec != null) {
+                    updates.put("specialization_id", spec.getId());
+                } else {
+                    log.warn("Specialization '{}' not found, skipping specialization update", specializationName);
+                }
+            }
+
+            updates.put("updated_at", LocalDateTime.now().format(DATASTORE_DATETIME_FORMAT));
+
+            JsonNode result = dataStoreService.updateRecord(doctorsTableId, id, updates);
             JsonNode rowData = result.has("doctors") ? result.get("doctors") : result;
-            return objectMapper.convertValue(rowData, Doctor.class);
+            return mapToDoctor(rowData);
         } catch (Exception e) {
             log.error("Failed to update doctor {}", id, e);
             throw new RuntimeException("Failed to update doctor", e);
