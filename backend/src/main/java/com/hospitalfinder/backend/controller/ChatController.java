@@ -94,13 +94,15 @@ public class ChatController {
 
     // Symptom analysis prompt — produces JSON for internal parsing
     private static final String SYMPTOM_ANALYSIS_PROMPT = """
+            You are HealthMate, an AI healthcare assistant for the Hospico platform.
             The user is describing health symptoms. Respond ONLY with valid JSON in this exact format:
-            {"type":"specialization_match","symptom":"<2-5 word summary>","inferred_issue":"<2-3 word non-diagnostic label>","natural_response":"<1-2 sentence warm, empathetic response about their symptom — no bullets, no templates>","specializations":["<spec1>"],"confidence":"low|medium|high","disclaimer":"This is general guidance, not a diagnosis. Please consult a doctor."}
+            {"type":"specialization_match","symptom":"<2-5 word summary>","inferred_issue":"<2-3 word non-diagnostic label>","natural_response":"<empathetic 1-2 sentence response acknowledging their symptom, written warmly — mention what it could relate to without diagnosing. End with offering to find hospitals or book an appointment.>","specializations":["<spec1>"],"confidence":"low|medium|high","disclaimer":"This is general guidance, not a medical diagnosis. Please consult a qualified healthcare professional."}
 
             RULES:
-            - natural_response: Write like a caring assistant. Example: "I'm sorry you're dealing with that. Pain behind the ear is often related to minor inflammation or an ear infection."
-            - Do NOT use bullet lists or "Based on your symptoms" template
-            - Do NOT use emoji in natural_response
+            - natural_response: Be empathetic and structured. Example: "I'm sorry you're experiencing that. Chest tightness can have several causes and it's important to get it checked. Would you like me to find nearby hospitals or book an appointment with a specialist?"
+            - Do NOT use bullet lists inside natural_response
+            - Do NOT use emoji inside natural_response
+            - If symptoms sound serious (chest pain, difficulty breathing, severe bleeding, dizziness + pain), add an emergency warning in natural_response
             - symptom: brief summary ("Ear pain", "Chest tightness")
             - inferred_issue: 2-3 words ("Ear infection", "Tension headache")
             - specializations: 1-2 from ONLY: Cardiology, Orthopedics, Pediatrics, Dermatology, Neurology, Gynecology, ENT, General Medicine, Surgery, Ophthalmology, Pulmonology, Oncology
@@ -195,6 +197,29 @@ public class ChatController {
             }
         }
 
+        // --- Shortcut: greetings ---
+        java.util.regex.Pattern greetingPattern = java.util.regex.Pattern.compile(
+                "^(hi|hello|hey|good morning|good afternoon|good evening|good night|howdy|what's up|sup)[ !?.]*$");
+        if (greetingPattern.matcher(lowerMessage.trim()).matches()) {
+            return returnAsNormalText(
+                "Hi there! 👋 I'm **HealthMate**, your AI healthcare assistant on Hospico.\n\n" +
+                "I can help you:\n" +
+                "• 🩺 Understand your symptoms\n" +
+                "• 🏥 Find nearby hospitals\n" +
+                "• 📅 Book an appointment with a specialist\n\n" +
+                "What can I help you with today?");
+        }
+
+        // --- Shortcut: user confirms a previous booking suggestion (yes/sure/okay) ---
+        java.util.regex.Pattern yesPattern = java.util.regex.Pattern.compile(
+                "^(yes|yeah|yep|sure|okay|ok|go ahead|proceed|book( it)?)[ !?.]*$");
+        if (yesPattern.matcher(lowerMessage.trim()).matches()) {
+            ChatSession yesSession = resolveSession(request.getSessionId());
+            if (yesSession != null && yesSession.getSpecialization() != null) {
+                return showHospitalsFromSession(yesSession, request.getLatitude(), request.getLongitude());
+            }
+        }
+
         // Check if message contains symptom keywords
         boolean containsSymptoms = containsSymptomKeywords(latestMessage);
 
@@ -225,14 +250,26 @@ public class ChatController {
             // Use symptom analysis prompt
             systemPrompt = SYMPTOM_ANALYSIS_PROMPT;
         } else {
-            // Normal healthcare assistant prompt — stateful, conversational
-            systemPrompt = "You are Hospico's Health & Booking Assistant. " +
-                    "RULES: Keep responses to 2-3 lines max. Be warm and professional. " +
-                    "Never show JSON, code, bullet templates, or technical details. " +
-                    "Never repeat the same symptom analysis or 'Based on your symptoms' format. " +
-                    "If user already described symptoms, do NOT ask again. " +
-                    "Do NOT diagnose. Gently suggest consulting a doctor. " +
-                    "If user asks about hospitals, tell them to say 'hospital near [city name]'.";
+            // HealthMate — structured conversational assistant
+            systemPrompt = """
+                    You are HealthMate, an AI healthcare assistant for the Hospico platform.
+
+                    Your job is to guide users through: Symptom → Hospital → Doctor → Appointment → Confirmation.
+
+                    STRICT RULES:
+                    - Keep each response SHORT and focused on ONE step at a time.
+                    - Use bullet points, emojis (🏥 👨‍⚕️ 📅 ⚠️ ✅), and clear structure.
+                    - Never dump all information at once — guide step by step.
+                    - Always be warm, empathetic, and professional. Never sound robotic.
+                    - Do NOT diagnose or prescribe medication.
+                    - Do NOT repeat information already in the conversation.
+                    - If a user describes symptoms, acknowledge empathetically, give a brief explanation, mention a safety disclaimer, then offer: find hospitals OR book appointment.
+                    - If symptoms sound serious (chest pain, difficulty breathing, severe bleeding), add an emergency warning FIRST.
+                    - Always end responses with a clear next action or question — never leave the user hanging.
+                    - For hospital or booking questions, tell the user to say 'hospital near [city name]' if location is needed.
+                    - Include this disclaimer when discussing symptoms: 'This is general guidance and not a medical diagnosis. Please consult a qualified healthcare professional.'
+                    - Respond in clear sections with short sentences.
+                    """;
         }
 
         // Add language instruction if not English
@@ -242,19 +279,21 @@ public class ChatController {
         }
         systemMessage.put("content", systemPrompt);
 
-        // 3. Combine Messages
+        // 3. Combine Messages — cap history to last 6 user/assistant messages
         List<Object> allMessages = new ArrayList<>();
         allMessages.add(systemMessage);
         if (request.getMessages() != null) {
-            allMessages.addAll(request.getMessages());
+            List<ChatRequest.Message> history = request.getMessages();
+            int start = Math.max(0, history.size() - 6);
+            allMessages.addAll(history.subList(start, history.size()));
         }
 
         // 4. Request Body
         Map<String, Object> body = new HashMap<>();
         body.put("model", "llama-3.1-8b-instant");
         body.put("messages", allMessages);
-        body.put("temperature", containsSymptoms ? 0.1 : 0.3); // Lower temperature for symptom analysis
-        body.put("max_tokens", 350);
+        body.put("temperature", containsSymptoms ? 0.1 : 0.4); // Lower temperature for symptom analysis
+        body.put("max_tokens", 220);
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
@@ -279,6 +318,33 @@ public class ChatController {
                         return handleSymptomResponse(replyContent, request.getLatitude(), request.getLongitude());
                     }
 
+                    // Check for [[RECOMMEND: Specialization]] tag in the AI reply
+                    java.util.regex.Matcher recommendMatcher = java.util.regex.Pattern
+                            .compile("\\[\\[RECOMMEND:\\s*([^\\]]+)\\]\\]")
+                            .matcher(replyContent != null ? replyContent : "");
+                    if (recommendMatcher.find()) {
+                        String detectedSpec = recommendMatcher.group(1).trim();
+                        // Strip the tag from the reply text shown to the user
+                        String cleanReply = replyContent.replaceAll("\\[\\[RECOMMEND:[^\\]]*\\]\\]", "").trim();
+                        // Build a synthetic symptom response so the frontend shows hospitals
+                        ChatSession recSession = resolveSession(request.getSessionId());
+                        if (recSession == null) {
+                            recSession = new ChatSession();
+                            recSession.setSessionId(request.getSessionId() != null ? request.getSessionId() : java.util.UUID.randomUUID().toString());
+                            recSession.setCreatedAt(java.time.LocalDateTime.now());
+                            recSession.setExpiresAt(java.time.LocalDateTime.now().plusMinutes(30));
+                        }
+                        recSession.setSpecialization(detectedSpec);
+                        recSession.setCurrentStep("hospital_selection");
+                        chatSessionService.save(recSession);
+                        // Return combined text + hospital list
+                        Map<String, Object> recResult = new HashMap<>();
+                        recResult.put("type", "symptom_explanation");
+                        recResult.put("reply", cleanReply);
+                        recResult.put("specializations", java.util.List.of(detectedSpec));
+                        return ResponseEntity.ok(recResult);
+                    }
+
                     // Normal text response
                     Map<String, Object> result = new HashMap<>();
                     result.put("type", "text");
@@ -293,12 +359,18 @@ public class ChatController {
 
         } catch (HttpClientErrorException e) {
             System.err.println("Groq API Error: " + e.getResponseBodyAsString());
-            return ResponseEntity.status(e.getStatusCode())
-                    .body(Collections.singletonMap("error", "Groq API Error: " + e.getResponseBodyAsString()));
+            Map<String, Object> fallback = new HashMap<>();
+            fallback.put("type", "fallback");
+            fallback.put("reply", "I'm having a little trouble right now. 😔 You can try again, or use one of the options below.");
+            fallback.put("showActions", true);
+            return ResponseEntity.ok(fallback);
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.status(500)
-                    .body(Collections.singletonMap("error", "Internal Server Error: " + e.getMessage()));
+            Map<String, Object> fallback = new HashMap<>();
+            fallback.put("type", "fallback");
+            fallback.put("reply", "I'm having a little trouble right now. 😔 You can try again, or use one of the options below.");
+            fallback.put("showActions", true);
+            return ResponseEntity.ok(fallback);
         }
     }
 
