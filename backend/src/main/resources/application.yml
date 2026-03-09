@@ -3,6 +3,11 @@ zoho:
   cloudscale:
     collection: users
 
+# Groq API key — read from env var on deployed server, overridden by profile properties locally
+groq:
+  api:
+    key: ${GROQ_API_KEY:}
+
 server:
   port: ${X_ZOHO_CATALYST_LISTEN_PORT:${PORT:8080}}
   address: 0.0.0.0
