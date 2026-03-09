@@ -40,6 +40,8 @@ interface Message {
         time: string;
         patient?: string;
     };
+    msgType?: string;
+    showActions?: boolean;
 }
 
 interface ChatWidgetProps {
@@ -95,6 +97,9 @@ const ChatWidget = ({ autoOpen = false, embedMode = false }: ChatWidgetProps) =>
     const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
     const [bookingReason, setBookingReason] = useState('');
+    const [expandedHospitalMsgs, setExpandedHospitalMsgs] = useState<Set<number>>(new Set());
+    const [inlineSlots, setInlineSlots] = useState<Record<number, string[]>>({});
+    const [inlineDateLoading, setInlineDateLoading] = useState<Record<number, boolean>>({});
 
     // Voice booking automation state
     const [voiceBookingActive, setVoiceBookingActive] = useState(false);
@@ -350,6 +355,7 @@ const ChatWidget = ({ autoOpen = false, embedMode = false }: ChatWidgetProps) =>
                 disclaimer?: string;
                 sessionId?: string;
                 step?: string;
+                showActions?: boolean;
             }, any>(
                 '/api/chat',
                 'POST',
@@ -380,6 +386,13 @@ const ChatWidget = ({ autoOpen = false, embedMode = false }: ChatWidgetProps) =>
                         confidence: response.confidence || 'medium',
                         disclaimer: response.disclaimer || 'This is not a medical diagnosis.'
                     } : undefined
+                }]);
+            } else if (response.type === 'fallback') {
+                setMessages(prev => [...prev, {
+                    role: 'bot',
+                    content: response.reply || "I'm having trouble right now.",
+                    msgType: 'fallback',
+                    showActions: true
                 }]);
             } else {
                 setMessages(prev => [...prev, {
@@ -558,6 +571,23 @@ const ChatWidget = ({ autoOpen = false, embedMode = false }: ChatWidgetProps) =>
         }
     };
 
+    const fetchSlotsInline = async (msgIdx: number, date: string) => {
+        if (!currentSessionId) return;
+        setInlineDateLoading(prev => ({ ...prev, [msgIdx]: true }));
+        try {
+            const response = await apiRequest<{ availableSlots?: string[] }, any>(
+                '/api/chat/action',
+                'POST',
+                { sessionId: currentSessionId, action: 'select_date', value: date }
+            );
+            setInlineSlots(prev => ({ ...prev, [msgIdx]: response.availableSlots || [] }));
+        } catch {
+            setInlineSlots(prev => ({ ...prev, [msgIdx]: [] }));
+        } finally {
+            setInlineDateLoading(prev => ({ ...prev, [msgIdx]: false }));
+        }
+    };
+
     const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -653,7 +683,7 @@ const ChatWidget = ({ autoOpen = false, embedMode = false }: ChatWidgetProps) =>
                                         {msg.hospitals && msg.hospitals.length > 0 && msg.step === 'hospital_selection' && (
                                             <div className="ml-10 mt-2 space-y-2 max-w-[calc(100%-40px)] overflow-hidden">
                                                 <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x w-full">
-                                                    {msg.hospitals.map((h, hIdx) => (
+                                                    {(expandedHospitalMsgs.has(idx) ? msg.hospitals : msg.hospitals.slice(0, 3)).map((h, hIdx) => (
                                                         <div key={`${h.clinicId || h.id}-${hIdx}`} className="min-w-[240px] max-w-[240px] snap-start relative group">
                                                             <SharedHospitalCard hospital={h} theme={theme} showDistance={true} />
                                                             <button
@@ -667,71 +697,82 @@ const ChatWidget = ({ autoOpen = false, embedMode = false }: ChatWidgetProps) =>
                                                         </div>
                                                     ))}
                                                 </div>
+                                                {!expandedHospitalMsgs.has(idx) && msg.hospitals.length > 3 && (
+                                                    <button
+                                                        onClick={() => setExpandedHospitalMsgs(prev => new Set(prev).add(idx))}
+                                                        className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${theme === 'dark' ? 'bg-gray-700 text-blue-400 hover:bg-gray-600' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                                                    >
+                                                        Show {msg.hospitals.length - 3} more hospitals ▼
+                                                    </button>
+                                                )}
                                             </div>
                                         )}
 
-                                        {/* Doctor Selection - Cards */}
+                                        {/* Doctor Selection - Compact List */}
                                         {msg.doctors && msg.doctors.length > 0 && msg.step === 'doctor_selection' && (
-                                            <div className="ml-10 mt-2 space-y-2 max-w-[calc(100%-40px)] overflow-hidden">
-                                                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x w-full">
-                                                    {msg.doctors.map((doctor, dIdx) => (
-                                                        <div key={`${doctor.id}-${dIdx}`} className="min-w-[220px] max-w-[220px] snap-start relative group">
-                                                            <div className={`h-full p-4 rounded-lg border-2 transition-all flex flex-col justify-between ${theme === 'dark' ? 'bg-gray-800 border-gray-700 group-hover:border-blue-500 group-hover:bg-gray-750' : 'bg-white border-gray-200 group-hover:border-blue-500 group-hover:bg-blue-50'}`}>
-                                                                {doctor.imageUrl && (
-                                                                    <div className="mb-3 -mx-4 -mt-4 mb-2">
-                                                                        <img
-                                                                            src={doctor.imageUrl}
-                                                                            alt={doctor.name}
-                                                                            className="w-full h-32 object-cover rounded-t-md"
-                                                                            onError={(e) => {
-                                                                                e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext x="50" y="50" dominant-baseline="middle" text-anchor="middle" font-size="14"%3E%F0%9F%91%A8%E2%80%8D%E2%9A%95%EF%B8%8F%3C/text%3E%3C/svg%3E';
-                                                                            }}
-                                                                        />
-                                                                    </div>
-                                                                )}
+                                            <div className="ml-10 mt-2 max-w-[calc(100%-40px)] space-y-1.5">
+                                                {msg.doctors.map((doctor, dIdx) => (
+                                                    <div
+                                                        key={`${doctor.id}-${dIdx}`}
+                                                        className={`flex items-center gap-3 p-2.5 rounded-lg border transition-all ${theme === 'dark' ? 'bg-gray-800 border-gray-700 hover:border-blue-500' : 'bg-white border-gray-200 hover:border-blue-400 hover:bg-blue-50'}`}
+                                                    >
+                                                        <span className="text-xl flex-shrink-0">👨‍⚕️</span>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-semibold text-sm truncate">{doctor.name}</p>
+                                                            <p className={`text-xs truncate ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{doctor.specialization}{doctor.qualifications ? ` · ${doctor.qualifications}` : ''}</p>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => handleBookingAction('select_doctor', doctor.id)}
+                                                            className="flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors"
+                                                        >
+                                                            Select
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
 
-                                                                <div>
-                                                                    <div className="font-bold text-sm text-blue-600 dark:text-blue-400 mb-1">👨‍⚕️ Doctor</div>
-                                                                    <div className="font-semibold text-sm mb-2 line-clamp-2">{doctor.name}</div>
-                                                                    <div className={`text-xs mb-2 font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                                                                        {doctor.specialization}
-                                                                    </div>
-                                                                    {doctor.qualifications && (
-                                                                        <div className={`text-[10px] mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                                            {doctor.qualifications}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                                <button
-                                                                    onClick={() => handleBookingAction('select_doctor', doctor.id)}
-                                                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 rounded-md font-semibold transition-colors"
-                                                                >
-                                                                    Select
-                                                                </button>
+                                        {/* Grouped Scheduling Card - Date picker + Time slots */}
+                                        {msg.step === 'date_selection' && (
+                                            <div className="ml-10 mt-2 max-w-[calc(100%-40px)]">
+                                                <div className={`p-4 rounded-xl border-2 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-blue-200'}`}>
+                                                    <div className={`font-semibold text-sm mb-3 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>📅 Select Appointment Date</div>
+                                                    <input
+                                                        type="date"
+                                                        min={new Date().toISOString().split('T')[0]}
+                                                        onChange={(e) => {
+                                                            if (e.target.value) {
+                                                                fetchSlotsInline(idx, e.target.value);
+                                                            }
+                                                        }}
+                                                        className={`w-full p-3 rounded-lg border-2 text-sm mb-3 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                                    />
+                                                    {inlineDateLoading[idx] && (
+                                                        <div className={`text-xs text-center py-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                            <Loader2 className="inline-block w-4 h-4 animate-spin mr-1" />Loading slots...
+                                                        </div>
+                                                    )}
+                                                    {inlineSlots[idx] && inlineSlots[idx].length > 0 && (
+                                                        <div>
+                                                            <div className={`text-xs font-medium mb-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>⏰ Available Time Slots</div>
+                                                            <div className="grid grid-cols-3 gap-2">
+                                                                {inlineSlots[idx].map((slot) => (
+                                                                    <button
+                                                                        key={slot}
+                                                                        onClick={() => handleBookingAction('select_time', slot)}
+                                                                        className={`p-2 rounded-lg text-xs font-medium transition-all ${theme === 'dark' ? 'bg-gray-700 border border-gray-600 hover:bg-blue-600 hover:border-blue-500 text-white' : 'bg-gray-50 border border-gray-300 hover:bg-blue-600 hover:text-white'}`}
+                                                                    >
+                                                                        {slot}
+                                                                    </button>
+                                                                ))}
                                                             </div>
                                                         </div>
-                                                    ))}
+                                                    )}
                                                 </div>
                                             </div>
                                         )}
 
-                                        {/* Date Selection */}
-                                        {msg.step === 'date_selection' && (
-                                            <div className="ml-10 mt-2 max-w-[calc(100%-40px)]">
-                                                <input
-                                                    type="date"
-                                                    min={new Date().toISOString().split('T')[0]}
-                                                    onChange={(e) => {
-                                                        if (e.target.value) {
-                                                            handleBookingAction('select_date', e.target.value);
-                                                        }
-                                                    }}
-                                                    className={`w-full p-3 rounded-lg border-2 text-sm ${theme === 'dark' ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300'}`}
-                                                />
-                                            </div>
-                                        )}
-
-                                        {/* Time Slot Selection */}
+                                        {/* Time Slot Selection (fallback for voice flow) */}
                                         {msg.availableSlots && msg.availableSlots.length > 0 && msg.step === 'time_selection' && (
                                             <div className="ml-10 mt-2 max-w-[calc(100%-40px)]">
                                                 <div className="grid grid-cols-3 gap-2">
@@ -745,6 +786,24 @@ const ChatWidget = ({ autoOpen = false, embedMode = false }: ChatWidgetProps) =>
                                                         </button>
                                                     ))}
                                                 </div>
+                                            </div>
+                                        )}
+
+                                        {/* Fallback error UI with action buttons */}
+                                        {msg.msgType === 'fallback' && msg.showActions && (
+                                            <div className="ml-10 mt-2 max-w-[calc(100%-40px)] flex flex-col gap-2">
+                                                <button
+                                                    onClick={() => handleSendMessage('hospital near me')}
+                                                    className={`text-left px-4 py-2.5 rounded-lg border-2 transition-all text-sm font-medium ${theme === 'dark' ? 'bg-blue-600/20 border-blue-500 hover:bg-blue-600 text-white' : 'bg-blue-50 border-blue-300 hover:bg-blue-100 text-blue-700'}`}
+                                                >
+                                                    🏥 Find hospitals near me
+                                                </button>
+                                                <button
+                                                    onClick={() => handleSendMessage('Book an appointment')}
+                                                    className={`text-left px-4 py-2.5 rounded-lg border-2 transition-all text-sm font-medium ${theme === 'dark' ? 'bg-green-600/20 border-green-500 hover:bg-green-600 text-white' : 'bg-green-50 border-green-300 hover:bg-green-100 text-green-700'}`}
+                                                >
+                                                    📅 Book an appointment
+                                                </button>
                                             </div>
                                         )}
 
