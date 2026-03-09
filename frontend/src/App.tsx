@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import OfflineScreen from "./components/OfflineScreen";
 // import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Navbar from "./components/Navbar";
@@ -15,6 +16,9 @@ import { useAuthInitializer } from "./hooks/useAuthInitializer";
 import { useKeepAlive } from "./hooks/useKeepAlive";
 import FullScreenLoader from "./components/FullScreenLoader";
 import PartnerLogin from "./pages/PartnerLogin";
+import DoctorLogin from "./pages/DoctorLogin";
+import DoctorDashboard from "./pages/DoctorDashboard";
+import HospitalDashboard from "./pages/HospitalDashboard";
 import Emergency from "./pages/Emergency";
 import HospitalProfile from "./pages/HospitalProfile";
 import Profile from "./pages/Profile.tsx";
@@ -24,6 +28,12 @@ import DoctorDashboard from "./pages/DoctorDashboard";
 import ChatWidget from "./features/chatbot/src/components/ChatWidget";
 
 import { ThemeProvider } from "./context/ThemeContext";
+
+const extractClinicIdFromHospitalEmail = (email?: string) => {
+  if (!email) return null;
+  const match = email.match(/\.(\d+)@hospiico\.com$/i);
+  return match?.[1] ?? null;
+};
 
 function App() {
   useAuthInitializer();
@@ -43,6 +53,9 @@ function App() {
         '/login': 'Login - HospiiCo',
         '/signup': 'Sign Up - HospiiCo',
         '/partner-login': 'Partner Login - HospiiCo',
+        '/doctor-login': 'Doctor Login - HospiiCo',
+        '/doctor-dashboard': 'Doctor Dashboard - HospiiCo',
+        '/hospital-dashboard': 'Hospital Dashboard - HospiiCo',
         '/profile': 'My Profile - HospiiCo',
         '/my-appointments': 'My Appointments - HospiiCo',
         '/resources': 'Resources - HospiiCo',
@@ -63,8 +76,11 @@ function App() {
 
   const {
     initialized,
-    // isAuthenticated
+    user,
   } = useSelector((s: RootState) => s.auth);
+  const isDoctor = user?.role?.toUpperCase() === "DOCTOR";
+  const isHospital = user?.role?.toUpperCase() === "HOSPITAL";
+  const hospitalClinicId = extractClinicIdFromHospitalEmail(user?.email) ?? user?.id ?? "";
 
   if (!initialized) {
     return <FullScreenLoader />;
@@ -82,11 +98,48 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/partner-login" element={<PartnerLogin />} />
+              <Route path="/doctor-login" element={<DoctorLogin />} />
               <Route
                 path="/dashboard"
                 element={
                   <ProtectedRoute>
-                    <Dashboard />
+                    {isDoctor
+                      ? <Navigate to={`/doctor-dashboard/${user?.id ?? ""}`} replace />
+                      : isHospital
+                        ? <Navigate to={`/hospital-dashboard/${hospitalClinicId}`} replace />
+                        : <Dashboard />}
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/doctor-dashboard"
+                element={
+                  <ProtectedRoute>
+                    <DoctorDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/doctor-dashboard/:doctorId"
+                element={
+                  <ProtectedRoute>
+                    <DoctorDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/hospital-dashboard"
+                element={
+                  <ProtectedRoute>
+                    <HospitalDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/hospital-dashboard/:hospitalId"
+                element={
+                  <ProtectedRoute>
+                    <HospitalDashboard />
                   </ProtectedRoute>
                 }
               />

@@ -1,22 +1,40 @@
 import DomainAddIcon from "@mui/icons-material/DomainAdd";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSelector } from "react-redux";
 import { useAppDispatch } from "../store/store";
-import { login } from "../features/auth/authSlice";
+import { partnerLogin } from "../features/auth/authSlice";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../api";
+import type { RootState } from "../store/store";
+
+const extractClinicIdFromHospitalEmail = (email?: string) => {
+  if (!email) return null;
+  const match = email.match(/\.(\d+)@hospiico\.com$/i);
+  return match?.[1] ?? null;
+};
 
 const PartnerLogin = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const { status, error, isAuthenticated, user } = useSelector((s: RootState) => s.auth);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handlePartnerLogin = async () => {
-    const resultAction = await dispatch(login({ email, password }));
+  useEffect(() => {
+    if (isAuthenticated && user?.role?.toUpperCase() === "HOSPITAL") {
+      const clinicId = extractClinicIdFromHospitalEmail(user.email) ?? user.id;
+      navigate(`/hospital-dashboard/${clinicId}`);
+    }
+  }, [isAuthenticated, navigate, user]);
 
-    if (login.fulfilled.match(resultAction)) {
-      navigate("/");
+  const handlePartnerLogin = async () => {
+    const resultAction = await dispatch(partnerLogin({ email, password }));
+
+    if (partnerLogin.fulfilled.match(resultAction)) {
+      const clinicId = extractClinicIdFromHospitalEmail(resultAction.payload.email)
+        ?? String(resultAction.payload.id);
+      navigate(`/hospital-dashboard/${clinicId}`);
     }
   };
 
@@ -39,6 +57,12 @@ const PartnerLogin = () => {
         <p className="text-center text-gray-500 dark:text-gray-400 mb-6 text-sm">
           Access your dashboard, manage slots, and grow your digital footprint
         </p>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+            <p className="text-red-800 dark:text-red-300 text-sm">{error}</p>
+          </div>
+        )}
 
         {/* Google Button */}
         <button
@@ -86,8 +110,11 @@ const PartnerLogin = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-colors">
-            Sign in
+          <button
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!email || !password || status === "loading"}
+          >
+            {status === "loading" ? "Signing in..." : "Sign in"}
           </button>
         </form>
 

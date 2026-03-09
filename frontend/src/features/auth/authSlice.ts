@@ -9,6 +9,7 @@ export type AuthUser = {
   id: string;
   email: string;
   name?: string;
+  role?: string;
   phone?: string;
   age?: number;
   gender?: string;
@@ -24,6 +25,16 @@ export type AuthState = {
 
 type Credentials = { email: string; password: string };
 type SignupPayload = { email: string; password: string; name?: string; phone?: string };
+const AUTH_USER_STORAGE_KEY = "auth_user";
+
+const persistAuthUser = (user: AuthUser) => {
+  localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
+};
+
+const clearAuthStorage = () => {
+  localStorage.removeItem("jwt_token");
+  localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+};
 // Updated AuthResponse type to match backend response
 export type AuthResponse = {
   success: boolean;
@@ -55,6 +66,44 @@ export const login = createAsyncThunk<AuthResponse, Credentials>(
         "POST",
         body
       );
+
+      return result;
+    } catch (err) {
+      return rejectWithValue((err as Error).message);
+    }
+  }
+);
+
+export const doctorLogin = createAsyncThunk<AuthResponse, Credentials>(
+  "auth/doctorLogin",
+  async (body, { rejectWithValue }) => {
+    try {
+      const result = await apiRequest<AuthResponse, Credentials>(
+        "/api/auth/doctor/login",
+        "POST",
+        body
+      );
+
+      return result;
+    } catch (err) {
+      return rejectWithValue((err as Error).message);
+    }
+  }
+);
+
+export const partnerLogin = createAsyncThunk<AuthResponse, Credentials>(
+  "auth/partnerLogin",
+  async (body, { rejectWithValue }) => {
+    try {
+      const result = await apiRequest<AuthResponse, Credentials>(
+        "/api/auth/login",
+        "POST",
+        body
+      );
+
+      if (result.role?.toUpperCase() !== "HOSPITAL") {
+        return rejectWithValue("Hospital account required");
+      }
 
       return result;
     } catch (err) {
@@ -108,18 +157,24 @@ const authSlice = createSlice({
     logout: (state) => {
       state.user = null;
       state.isAuthenticated = false;
-      // Remove the JWT token from localStorage
-      localStorage.removeItem('jwt_token');
+      clearAuthStorage();
     },
     initializeAuth: (state) => {
       // Check if we have a stored token
       const token = localStorage.getItem('jwt_token');
       if (token) {
-        // For now, we'll just set isAuthenticated to true
-        // In a real app, you might want to verify the token
+        const storedUser = localStorage.getItem(AUTH_USER_STORAGE_KEY);
+        if (storedUser) {
+          try {
+            state.user = JSON.parse(storedUser) as AuthUser;
+          } catch {
+            localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+          }
+        }
         state.isAuthenticated = true;
         state.initialized = true;
       } else {
+        state.user = null;
         state.initialized = true;
       }
     },
@@ -150,7 +205,9 @@ const authSlice = createSlice({
               id: action.payload.id.toString(),
               email: action.payload.email,
               name: action.payload.name || undefined,
+              role: action.payload.role,
             };
+            persistAuthUser(state.user);
           }
           // Store the JWT token in localStorage
           if (action.payload && action.payload.token) {
@@ -164,6 +221,80 @@ const authSlice = createSlice({
         state.status = "failed";
         state.error =
           (action.payload as string) ?? action.error.message ?? "Login failed";
+        state.isAuthenticated = false;
+        state.initialized = true;
+      });
+
+    // DOCTOR LOGIN
+    builder
+      .addCase(doctorLogin.pending, (state) => {
+        state.status = "loading";
+        state.error = null;
+        state.initialized = false;
+      })
+      .addCase(
+        doctorLogin.fulfilled,
+        (state, action: PayloadAction<AuthResponse>) => {
+          state.status = "succeeded";
+          if (action.payload && action.payload.id) {
+            state.user = {
+              id: action.payload.id.toString(),
+              email: action.payload.email,
+              name: action.payload.name,
+              role: action.payload.role,
+            };
+            persistAuthUser(state.user);
+          }
+
+          if (action.payload && action.payload.token) {
+            localStorage.setItem('jwt_token', action.payload.token);
+          }
+
+          state.isAuthenticated = true;
+          state.initialized = true;
+        }
+      )
+      .addCase(doctorLogin.rejected, (state, action) => {
+        state.status = "failed";
+        state.error =
+          (action.payload as string) ?? action.error.message ?? "Doctor login failed";
+        state.isAuthenticated = false;
+        state.initialized = true;
+      });
+
+    // PARTNER LOGIN
+    builder
+      .addCase(partnerLogin.pending, (state) => {
+        state.status = "loading";
+        state.error = null;
+        state.initialized = false;
+      })
+      .addCase(
+        partnerLogin.fulfilled,
+        (state, action: PayloadAction<AuthResponse>) => {
+          state.status = "succeeded";
+          if (action.payload && action.payload.id) {
+            state.user = {
+              id: action.payload.id.toString(),
+              email: action.payload.email,
+              name: action.payload.name,
+              role: action.payload.role,
+            };
+            persistAuthUser(state.user);
+          }
+
+          if (action.payload && action.payload.token) {
+            localStorage.setItem('jwt_token', action.payload.token);
+          }
+
+          state.isAuthenticated = true;
+          state.initialized = true;
+        }
+      )
+      .addCase(partnerLogin.rejected, (state, action) => {
+        state.status = "failed";
+        state.error =
+          (action.payload as string) ?? action.error.message ?? "Partner login failed";
         state.isAuthenticated = false;
         state.initialized = true;
       });
@@ -184,7 +315,9 @@ const authSlice = createSlice({
               id: action.payload.id.toString(),
               email: action.payload.email,
               name: action.payload.name || undefined,
+              role: action.payload.role,
             };
+            persistAuthUser(state.user);
           }
           // Store the JWT token in localStorage
           if (action.payload && action.payload.token) {

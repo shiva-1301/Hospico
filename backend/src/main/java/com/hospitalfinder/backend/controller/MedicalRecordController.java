@@ -1,16 +1,25 @@
 package com.hospitalfinder.backend.controller;
 
-import com.hospitalfinder.backend.entity.MedicalRecord;
-import com.hospitalfinder.backend.service.MedicalRecordService;
+import java.io.IOException;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.util.List;
+import com.hospitalfinder.backend.entity.MedicalRecord;
+import com.hospitalfinder.backend.service.MedicalRecordService;
 
 @RestController
 @RequestMapping("/api/medical-records")
@@ -46,11 +55,30 @@ public class MedicalRecordController {
     @GetMapping("/{id}")
     public ResponseEntity<byte[]> getFile(@PathVariable Long id) {
         return medicalRecordService.getRecordById(id)
-                .map(record -> ResponseEntity.ok()
-                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + record.getName() + "\"")
-                        .contentType(MediaType.parseMediaType(record.getType()))
-                        .body(record.getData()))
-                .orElse(ResponseEntity.notFound().build());
+            .map(record -> {
+                if (record.getData() == null || record.getData().length == 0) {
+                        return ResponseEntity.status(404).<byte[]>build();
+                }
+
+                MediaType mediaType;
+                try {
+                mediaType = record.getType() != null && !record.getType().isBlank()
+                    ? MediaType.parseMediaType(record.getType())
+                    : MediaType.APPLICATION_OCTET_STREAM;
+                } catch (Exception ex) {
+                mediaType = MediaType.APPLICATION_OCTET_STREAM;
+                }
+
+                String fileName = record.getName() != null && !record.getName().isBlank()
+                    ? record.getName()
+                    : ("record-" + id);
+
+                return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                    .contentType(mediaType)
+                    .body(record.getData());
+            })
+                .orElse(ResponseEntity.status(404).<byte[]>build());
     }
 
     @DeleteMapping("/{id}")

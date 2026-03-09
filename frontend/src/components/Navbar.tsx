@@ -19,7 +19,8 @@ export default function Navbar() {
   const navigate = useNavigate();
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
-  const { isAuthenticated } = useSelector((s: RootState) => s.auth);
+  const { isAuthenticated, user } = useSelector((s: RootState) => s.auth);
+  const isDoctor = user?.role?.toUpperCase() === "DOCTOR";
 
   const mainLinks = [
     { name: "Find Hospitals", to: "/find-hospitals" },
@@ -32,11 +33,13 @@ export default function Navbar() {
     { name: "FAQs", to: "/faqs" },
   ];
 
-  const userLinks = [
-    { name: "My Profile", to: "/profile" },
-    { name: "My Appointments", to: "/my-appointments" },
-    { name: "Medical Reports", to: "/reports" },
-  ];
+  const userLinks = isDoctor
+    ? []
+    : [
+        { name: "My Profile", to: "/profile" },
+        { name: "My Appointments", to: "/my-appointments" },
+        { name: "Medical Reports", to: "/reports" },
+      ];
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -79,39 +82,43 @@ export default function Navbar() {
 
           {/* Desktop Menu */}
           <div className="hidden lg:flex items-center space-x-8 ml-12">
-            {mainLinks.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className="text-gray-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-              >
-                {link.name}
-              </Link>
-            ))}
+            {!isDoctor && (
+              <>
+                {mainLinks.map((link) => (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    className="text-gray-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                  >
+                    {link.name}
+                  </Link>
+                ))}
 
-            {/* Resources Dropdown (hover-based) */}
-            <div
-              className="relative"
-              onMouseEnter={() => setIsResourcesOpen(true)}
-              onMouseLeave={() => setIsResourcesOpen(false)}
-            >
-              <button className="flex items-center text-gray-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                Resources <ChevronDown className="h-4 w-4 ml-1" />
-              </button>
-              {isResourcesOpen && (
-                <div className="absolute top-full left-0 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-lg py-2 border dark:border-slate-700">
-                  {resourceLinks.map((link) => (
-                    <Link
-                      key={link.to}
-                      to={link.to}
-                      className="block px-4 py-2 text-gray-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700"
-                    >
-                      {link.name}
-                    </Link>
-                  ))}
+                {/* Resources Dropdown (hover-based) */}
+                <div
+                  className="relative"
+                  onMouseEnter={() => setIsResourcesOpen(true)}
+                  onMouseLeave={() => setIsResourcesOpen(false)}
+                >
+                  <button className="flex items-center text-gray-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                    Resources <ChevronDown className="h-4 w-4 ml-1" />
+                  </button>
+                  {isResourcesOpen && (
+                    <div className="absolute top-full left-0 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-lg py-2 border dark:border-slate-700">
+                      {resourceLinks.map((link) => (
+                        <Link
+                          key={link.to}
+                          to={link.to}
+                          className="block px-4 py-2 text-gray-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-700"
+                        >
+                          {link.name}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
 
           {/* Desktop Right Menu */}
@@ -178,13 +185,15 @@ export default function Navbar() {
               <></>
             )}
 
-            <button className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-md hover:shadow-lg">
-              <Link
-                to="/find-hospitals"
-              >
-                Book Appointment
-              </Link>
-            </button>
+            {!isDoctor && (
+              <button className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-md hover:shadow-lg">
+                <Link
+                  to="/find-hospitals"
+                >
+                  Book Appointment
+                </Link>
+              </button>
+            )}
           </div>
 
           <LanguageModal
@@ -226,7 +235,7 @@ export default function Navbar() {
               <ThemeToggle />
             </div>
 
-            {[...mainLinks, ...resourceLinks].map((link) => (
+            {!isDoctor && [...mainLinks, ...resourceLinks].map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
@@ -260,13 +269,15 @@ export default function Navbar() {
               </button>
             )}
 
-            <Link
-              to="/find-hospitals"
-              onClick={() => setIsMenuOpen(false)}
-              className="block w-full text-center mt-4 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-lg hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-md"
-            >
-              Book Appointment
-            </Link>
+            {!isDoctor && (
+              <Link
+                to="/find-hospitals"
+                onClick={() => setIsMenuOpen(false)}
+                className="block w-full text-center mt-4 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-lg hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-md"
+              >
+                Book Appointment
+              </Link>
+            )}
           </div>
         )}
       </div>

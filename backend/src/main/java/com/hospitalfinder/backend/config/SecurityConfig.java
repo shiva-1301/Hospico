@@ -51,7 +51,7 @@ public class SecurityConfig {
                         .requestMatchers("/", "/api/health", "/health/**", "/actuator/**", "/actuator/health")
                         .permitAll()
                         // Auth endpoints
-                        .requestMatchers("/api/auth/signup", "/api/auth/login", "/api/users/me").permitAll()
+                        .requestMatchers("/api/auth/signup", "/api/auth/login", "/api/auth/doctor/login", "/api/auth/partner/bootstrap", "/api/users/me").permitAll()
                         // Public API endpoints
                         .requestMatchers("/api/clinics", "/api/clinics/**",
                                 "/api/specializations", "/api/specializations/**",

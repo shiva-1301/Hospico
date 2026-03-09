@@ -1,492 +1,514 @@
-import { useState, useEffect } from "react";
+import { Activity, Calendar, CalendarDays, Clock3, Plus, TrendingUp, Users, X } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useSelector } from "react-redux";
-import {
-  Calendar,
-  Clock,
-  User,
-  Users,
-  CheckCircle,
-  AlertCircle,
-  ChevronDown,
-  X,
-  Phone,
-  Mail,
-  Stethoscope,
-  PlusCircle,
-  ClipboardList,
-} from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useAppDispatch } from "../store/store";
+import { logout } from "../features/auth/authSlice";
 import type { RootState } from "../store/store";
-import { apiRequest } from "../api";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+type DashboardTab = "appointments" | "slots" | "profile";
 
-type Appointment = {
+type DoctorSlot = {
   id: string;
-  appointmentTime: string;
-  status: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+};
+
+type DoctorProfile = {
+  fullName: string;
+  hospital: string;
+  specialization: string;
+  experienceYears: string;
+  bio: string;
+};
+
+type AppointmentItem = {
+  id: string;
   patientName: string;
-  patientAge: number;
-  patientGender: string;
-  patientEmail?: string;
-  patientPhone?: string;
-  clinicName: string;
-  doctorName: string;
-  doctorSpecialization?: string;
-  reason?: string;
+  dateTime: string;
+  symptoms: string;
+  status: "Upcoming" | "Completed";
 };
 
-type LeaveRequest = {
-  id: string;
-  doctorId: string;
-  startDate: string;
-  endDate: string;
-  reason: string;
-  status: "PENDING" | "APPROVED" | "REJECTED";
-};
+const DoctorDashboard = () => {
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const { doctorId: routeDoctorId } = useParams();
+  const authUser = useSelector((s: RootState) => s.auth.user);
+  const doctorName = authUser?.name || "Doctor";
+  const effectiveDoctorId = routeDoctorId || authUser?.id || "doctor";
+  const profileStorageKey = `doctor_profile_${effectiveDoctorId}`;
+  const slotsStorageKey = `doctor_slots_${effectiveDoctorId}`;
 
-const STATUS_OPTIONS = ["BOOKED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "NO_SHOW"];
+  const [activeTab, setActiveTab] = useState<DashboardTab>("appointments");
 
-// ── Helper components ─────────────────────────────────────────────────────────
+  const [profile, setProfile] = useState<DoctorProfile>(() => {
+    try {
+      const saved = localStorage.getItem(profileStorageKey);
+      if (saved) {
+        return JSON.parse(saved) as DoctorProfile;
+      }
+    } catch {
+    }
+    return {
+      fullName: doctorName,
+      hospital: "HealthFirst Primary Care",
+      specialization: "General Medicine",
+      experienceYears: "20",
+      bio: "Experienced general practitioner providing comprehensive primary care and health screenings.",
+    };
+  });
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    BOOKED: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-    IN_PROGRESS: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300",
-    COMPLETED: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
-    CANCELLED: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
-    NO_SHOW: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300",
-    PENDING: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300",
-    APPROVED: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
-    REJECTED: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  const [selectedDate, setSelectedDate] = useState(() => formatDateForInput(new Date()));
+
+  const [slots, setSlots] = useState<DoctorSlot[]>(() => {
+    try {
+      const saved = localStorage.getItem(slotsStorageKey);
+      if (saved) {
+        return JSON.parse(saved) as DoctorSlot[];
+      }
+    } catch {
+    }
+
+    const today = formatDateForInput(new Date());
+    return [
+      {
+        id: crypto.randomUUID(),
+        date: today,
+        startTime: "18:10",
+        endTime: "19:10",
+      },
+    ];
+  });
+
+  const [isSlotModalOpen, setIsSlotModalOpen] = useState(false);
+  const [newSlotDate, setNewSlotDate] = useState(selectedDate);
+  const [newSlotStartTime, setNewSlotStartTime] = useState("20:00");
+  const [newSlotEndTime, setNewSlotEndTime] = useState("21:00");
+  const [slotError, setSlotError] = useState("");
+
+  const appointments: AppointmentItem[] = useMemo(
+    () => [
+      {
+        id: "1",
+        patientName: "Aadhya Rao",
+        dateTime: `${selectedDate} 11:30`,
+        symptoms: "Headache",
+        status: "Completed",
+      },
+      {
+        id: "2",
+        patientName: "Vikram Nair",
+        dateTime: `${selectedDate} 18:00`,
+        symptoms: "Fever",
+        status: "Upcoming",
+      },
+    ],
+    [selectedDate]
+  );
+
+  const todayLabel = useMemo(() => {
+    const now = new Date();
+    return now.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    });
+  }, []);
+
+  const daySlots = useMemo(
+    () => slots.filter((slot) => slot.date === selectedDate).sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    [slots, selectedDate]
+  );
+
+  const totalAppointments = appointments.length;
+  const completedAppointments = appointments.filter((a) => a.status === "Completed").length;
+
+  const handleOpenSlotModal = () => {
+    setNewSlotDate(selectedDate);
+    setNewSlotStartTime("20:00");
+    setNewSlotEndTime("21:00");
+    setSlotError("");
+    setIsSlotModalOpen(true);
   };
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${map[status] ?? "bg-gray-100 text-gray-600"}`}>
-      {status}
-    </span>
-  );
-}
 
-function StatCard({
-  icon,
-  label,
-  value,
-  color,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  color: string;
-}) {
-  return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm flex items-center gap-4 border border-gray-100 dark:border-slate-700">
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>{icon}</div>
-      <div>
-        <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
-        <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
-      </div>
-    </div>
-  );
-}
-
-// ── Main Component ────────────────────────────────────────────────────────────
-
-export default function DoctorDashboard() {
-  const { user } = useSelector((s: RootState) => s.auth);
-
-  // Use doctorId from Redux user, fallback for demo
-  const doctorId: string = (user as { doctorId?: string; id?: string } | null)?.doctorId
-    ?? (user as { id?: string } | null)?.id
-    ?? "26566000000096005";
-
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
-  const [loadingAppts, setLoadingAppts] = useState(true);
-  const [loadingLeaves, setLoadingLeaves] = useState(true);
-  const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
-  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
-
-  // Leave form state
-  const [leaveForm, setLeaveForm] = useState({ startDate: "", endDate: "", reason: "" });
-  const [submittingLeave, setSubmittingLeave] = useState(false);
-  const [leaveError, setLeaveError] = useState<string | null>(null);
-  const [leaveSuccess, setLeaveSuccess] = useState(false);
-
-  // ── Data fetching ───────────────────────────────────────────────────────────
-
-  async function fetchAppointments() {
-    setLoadingAppts(true);
-    try {
-      const data = await apiRequest<Appointment[]>(
-        `/api/appointments/doctor/${doctorId}/date/${new Date().toISOString().split("T")[0]}`,
-        "GET"
-      );
-      setAppointments(Array.isArray(data) ? data : []);
-    } catch {
-      setAppointments([]);
-    } finally {
-      setLoadingAppts(false);
-    }
-  }
-
-  async function fetchLeaves() {
-    setLoadingLeaves(true);
-    try {
-      const data = await apiRequest<LeaveRequest[]>(`/api/doctor-leaves/doctor/${doctorId}`, "GET");
-      setLeaves(Array.isArray(data) ? data : []);
-    } catch {
-      setLeaves([]);
-    } finally {
-      setLoadingLeaves(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchAppointments();
-    fetchLeaves();
-  }, [doctorId]);
-
-  // ── Appointment status update ───────────────────────────────────────────────
-
-  async function handleStatusChange(apptId: string, newStatus: string) {
-    setUpdatingStatus(apptId);
-    try {
-      await apiRequest(`/api/appointments/${apptId}/status?status=${newStatus}`, "PUT");
-      setAppointments((prev) =>
-        prev.map((a) => (a.id === apptId ? { ...a, status: newStatus } : a))
-      );
-    } catch {
-      // silently fail — keep UI consistent
-    } finally {
-      setUpdatingStatus(null);
-    }
-  }
-
-  // ── Leave request submit ────────────────────────────────────────────────────
-
-  async function handleLeaveSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!leaveForm.startDate || !leaveForm.endDate || !leaveForm.reason.trim()) {
-      setLeaveError("Please fill in all fields.");
+  const handleAddSlot = () => {
+    if (!newSlotDate || !newSlotStartTime || !newSlotEndTime) {
+      setSlotError("Date, start time and end time are required.");
       return;
     }
-    setSubmittingLeave(true);
-    setLeaveError(null);
-    try {
-      await apiRequest("/api/doctor-leaves/request", "POST", {
-        doctorId,
-        startDate: leaveForm.startDate,
-        endDate: leaveForm.endDate,
-        reason: leaveForm.reason,
-      });
-      setLeaveSuccess(true);
-      setLeaveForm({ startDate: "", endDate: "", reason: "" });
-      fetchLeaves();
-      setTimeout(() => setLeaveSuccess(false), 3000);
-    } catch {
-      setLeaveError("Failed to submit. Please try again.");
-    } finally {
-      setSubmittingLeave(false);
+
+    if (newSlotEndTime <= newSlotStartTime) {
+      setSlotError("End time must be after start time.");
+      return;
     }
-  }
 
-  // ── Derived stats ───────────────────────────────────────────────────────────
+    const hasOverlap = slots.some(
+      (slot) =>
+        slot.date === newSlotDate &&
+        !(newSlotEndTime <= slot.startTime || newSlotStartTime >= slot.endTime)
+    );
 
-  const total = appointments.length;
-  const completed = appointments.filter((a) => a.status === "COMPLETED").length;
-  const upcoming = appointments.filter((a) => a.status === "BOOKED").length;
-  const inProgress = appointments.filter((a) => a.status === "IN_PROGRESS").length;
+    if (hasOverlap) {
+      setSlotError("This slot overlaps with an existing slot.");
+      return;
+    }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+    const updated = [
+      ...slots,
+      {
+        id: crypto.randomUUID(),
+        date: newSlotDate,
+        startTime: newSlotStartTime,
+        endTime: newSlotEndTime,
+      },
+    ];
+
+    setSlots(updated);
+    localStorage.setItem(slotsStorageKey, JSON.stringify(updated));
+    setSelectedDate(newSlotDate);
+    setIsSlotModalOpen(false);
+  };
+
+  const handleRemoveSlot = (slotId: string) => {
+    const updated = slots.filter((slot) => slot.id !== slotId);
+    setSlots(updated);
+    localStorage.setItem(slotsStorageKey, JSON.stringify(updated));
+  };
+
+  const handleProfileSave = () => {
+    localStorage.setItem(profileStorageKey, JSON.stringify(profile));
+  };
+
+  const handleLogout = async () => {
+    await dispatch(logout());
+    navigate("/doctor-login");
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors duration-200">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-sky-500 px-4 sm:px-8 py-8">
-        <div className="max-w-6xl mx-auto">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Doctor Dashboard</h1>
-          <p className="text-indigo-100 text-sm mt-1">
-            Welcome back, Dr. {user?.name ?? "Doctor"} · {new Date().toDateString()}
-          </p>
-        </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto px-4 sm:px-8 py-8 space-y-8">
-        {/* ── Stats Row ─────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <StatCard
-            icon={<Users className="w-6 h-6 text-blue-600" />}
-            label="Total Today"
-            value={total}
-            color="bg-blue-50 dark:bg-blue-900/30"
-          />
-          <StatCard
-            icon={<Calendar className="w-6 h-6 text-indigo-600" />}
-            label="Upcoming"
-            value={upcoming}
-            color="bg-indigo-50 dark:bg-indigo-900/30"
-          />
-          <StatCard
-            icon={<Clock className="w-6 h-6 text-yellow-600" />}
-            label="In Progress"
-            value={inProgress}
-            color="bg-yellow-50 dark:bg-yellow-900/30"
-          />
-          <StatCard
-            icon={<CheckCircle className="w-6 h-6 text-green-600" />}
-            label="Completed"
-            value={completed}
-            color="bg-green-50 dark:bg-green-900/30"
-          />
-        </div>
-
-        {/* ── Today's Appointments Table ──────────────────────────────────── */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-700 flex items-center gap-2">
-            <Stethoscope className="w-5 h-5 text-indigo-500" />
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Today's Appointments</h2>
+    <div className="min-h-[calc(100vh-5rem)] bg-gray-100 dark:bg-slate-900 transition-colors duration-200 px-4 py-8 md:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-xl">
+                <Activity className="h-7 w-7 text-emerald-500" />
+              </div>
+              <h1 className="text-4xl font-bold text-slate-900 dark:text-white">Doctor Dashboard</h1>
+            </div>
+            <p className="text-lg text-slate-600 dark:text-slate-300">
+              {profile.specialization} · {profile.hospital} · {profile.experienceYears} yrs experience
+            </p>
           </div>
 
-          {loadingAppts ? (
-            <div className="p-8 text-center text-gray-400 animate-pulse">Loading appointments…</div>
-          ) : appointments.length === 0 ? (
-            <div className="p-8 text-center text-gray-400 dark:text-gray-500">
-              No appointments scheduled for today.
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 shadow-sm w-fit">
+            <div className="flex items-center gap-3">
+              <CalendarDays className="h-5 w-5 text-blue-500" />
+              <div>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Today</p>
+                <p className="font-semibold text-slate-900 dark:text-white">{todayLabel}</p>
+              </div>
             </div>
-          ) : (
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+          <StatCard title="Today's Appointments" value={String(appointments.length)} icon={<Users className="h-6 w-6 text-emerald-500" />} tint="emerald" />
+          <StatCard title="Total Appointments" value={String(totalAppointments)} icon={<CalendarDays className="h-6 w-6 text-blue-500" />} tint="blue" />
+          <StatCard title="Active Slots" value={String(daySlots.length)} icon={<Clock3 className="h-6 w-6 text-orange-500" />} tint="orange" />
+          <StatCard title="Completed" value={String(completedAppointments)} icon={<TrendingUp className="h-6 w-6 text-purple-500" />} tint="purple" />
+        </div>
+
+        <section className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-sm">
+          <div className="px-6 border-b border-slate-200 dark:border-slate-700">
+            <div className="flex items-center gap-8">
+              <button
+                onClick={() => setActiveTab("appointments")}
+                className={`py-4 text-lg font-medium border-b-2 ${
+                  activeTab === "appointments"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-slate-500 dark:text-slate-400"
+                }`}
+              >
+                Appointments
+              </button>
+              <button
+                onClick={() => setActiveTab("slots")}
+                className={`py-4 text-lg font-medium border-b-2 ${
+                  activeTab === "slots"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-slate-500 dark:text-slate-400"
+                }`}
+              >
+                Manage Slots
+              </button>
+              <button
+                onClick={() => setActiveTab("profile")}
+                className={`py-4 text-lg font-medium border-b-2 ${
+                  activeTab === "profile"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-slate-500 dark:text-slate-400"
+                }`}
+              >
+                Profile
+              </button>
+            </div>
+          </div>
+
+          {activeTab === "appointments" && (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-slate-700/50">
-                  <tr>
-                    {["Patient", "Time", "Reason", "Status", "Actions"].map((h) => (
-                      <th
-                        key={h}
-                        className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide"
-                      >
-                        {h}
-                      </th>
-                    ))}
+              <table className="w-full min-w-[700px]">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-900/40">
+                    <th className="text-left px-6 py-4 text-xs font-semibold tracking-wider text-slate-500 dark:text-slate-400 uppercase">Patient Name</th>
+                    <th className="text-left px-6 py-4 text-xs font-semibold tracking-wider text-slate-500 dark:text-slate-400 uppercase">Date & Time</th>
+                    <th className="text-left px-6 py-4 text-xs font-semibold tracking-wider text-slate-500 dark:text-slate-400 uppercase">Symptoms</th>
+                    <th className="text-left px-6 py-4 text-xs font-semibold tracking-wider text-slate-500 dark:text-slate-400 uppercase">Status</th>
+                    <th className="text-left px-6 py-4 text-xs font-semibold tracking-wider text-slate-500 dark:text-slate-400 uppercase">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-slate-700">
-                  {appointments.map((appt) => (
-                    <tr key={appt.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                        {appt.patientName}
-                        {appt.patientAge && (
-                          <span className="ml-1 text-xs text-gray-400">({appt.patientAge}y)</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">
-                        {appt.appointmentTime
-                          ? new Date(appt.appointmentTime).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400 max-w-[160px] truncate">
-                        {appt.reason ?? "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={appt.status} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setSelectedAppt(appt)}
-                            className="text-indigo-600 dark:text-indigo-400 hover:underline text-xs font-medium"
-                          >
-                            View
-                          </button>
-                          <div className="relative">
-                            <select
-                              className="appearance-none text-xs border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-200 rounded-lg px-2 py-1 pr-6 focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50"
-                              value={appt.status}
-                              disabled={updatingStatus === appt.id}
-                              onChange={(e) => handleStatusChange(appt.id, e.target.value)}
-                            >
-                              {STATUS_OPTIONS.map((s) => (
-                                <option key={s} value={s}>
-                                  {s}
-                                </option>
-                              ))}
-                            </select>
-                            <ChevronDown className="w-3 h-3 absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400" />
-                          </div>
-                        </div>
-                      </td>
+                <tbody>
+                  {appointments.map((appointment) => (
+                    <tr key={appointment.id} className="border-t border-slate-100 dark:border-slate-700">
+                      <td className="px-6 py-4 text-slate-800 dark:text-slate-200">{appointment.patientName}</td>
+                      <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{appointment.dateTime}</td>
+                      <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{appointment.symptoms}</td>
+                      <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{appointment.status}</td>
+                      <td className="px-6 py-4 text-slate-600 dark:text-slate-300">-</td>
                     </tr>
                   ))}
+                  {appointments.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-10 text-center text-slate-500 dark:text-slate-400 text-lg">
+                        No appointments found.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
           )}
-        </div>
 
-        {/* ── Leave Request + History ──────────────────────────────────────── */}
-        <div className="grid sm:grid-cols-2 gap-6">
-          {/* Request Form */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <PlusCircle className="w-5 h-5 text-indigo-500" />
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Request Leave</h2>
-            </div>
-            <form onSubmit={handleLeaveSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  Start Date
-                </label>
-                <input
-                  type="date"
-                  className="w-full border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  value={leaveForm.startDate}
-                  min={new Date().toISOString().split("T")[0]}
-                  onChange={(e) => setLeaveForm((f) => ({ ...f, startDate: e.target.value }))}
-                />
+          {activeTab === "slots" && (
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-4xl font-bold text-slate-900 dark:text-white">Manage Slots</h2>
+                <button
+                  onClick={handleOpenSlotModal}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Slot
+                </button>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  End Date
-                </label>
-                <input
-                  type="date"
-                  className="w-full border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                  value={leaveForm.endDate}
-                  min={leaveForm.startDate || new Date().toISOString().split("T")[0]}
-                  onChange={(e) => setLeaveForm((f) => ({ ...f, endDate: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  Reason
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Brief reason for leave…"
-                  className="w-full border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
-                  value={leaveForm.reason}
-                  onChange={(e) => setLeaveForm((f) => ({ ...f, reason: e.target.value }))}
-                />
-              </div>
-              {leaveError && (
-                <p className="text-red-500 text-xs flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" /> {leaveError}
-                </p>
-              )}
-              {leaveSuccess && (
-                <p className="text-green-600 dark:text-green-400 text-xs flex items-center gap-1">
-                  <CheckCircle className="w-3 h-3" /> Leave request submitted successfully!
-                </p>
-              )}
-              <button
-                type="submit"
-                disabled={submittingLeave}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium py-2 rounded-xl text-sm transition-colors"
-              >
-                {submittingLeave ? "Submitting…" : "Submit Request"}
-              </button>
-            </form>
-          </div>
 
-          {/* Leave History */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <ClipboardList className="w-5 h-5 text-indigo-500" />
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Leave History</h2>
-            </div>
-            {loadingLeaves ? (
-              <div className="text-center text-gray-400 animate-pulse py-6">Loading…</div>
-            ) : leaves.length === 0 ? (
-              <div className="text-center text-gray-400 dark:text-gray-500 py-6 text-sm">
-                No leave requests yet.
+              <div className="max-w-sm mb-5">
+                <label className="block text-sm mb-2 text-slate-600 dark:text-slate-300">Date</label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
+                  />
+                  <Calendar className="absolute right-3 top-3.5 h-4 w-4 text-slate-400 pointer-events-none" />
+                </div>
               </div>
-            ) : (
-              <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                {leaves.map((l) => (
-                  <div
-                    key={l.id}
-                    className="rounded-xl border border-gray-100 dark:border-slate-700 p-3 flex items-start justify-between gap-2"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{l.reason}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        {l.startDate} → {l.endDate}
-                      </p>
-                    </div>
-                    <StatusBadge status={l.status} />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {daySlots.map((slot) => (
+                  <div key={slot.id} className="relative border border-slate-200 dark:border-slate-700 rounded-xl px-5 py-4 bg-white dark:bg-slate-900">
+                    <button
+                      onClick={() => handleRemoveSlot(slot.id)}
+                      className="absolute right-2 top-2 text-red-500 hover:text-red-600"
+                      aria-label="Remove slot"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                    <p className="text-2xl font-semibold text-slate-900 dark:text-white">{slot.startTime}</p>
+                    <p className="text-slate-500 dark:text-slate-300 mt-1">{slot.endTime}</p>
+                    <p className="text-emerald-600 font-medium mt-2">Available</p>
                   </div>
                 ))}
+                {daySlots.length === 0 && (
+                  <p className="text-slate-500 dark:text-slate-400">No slots for selected date.</p>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
+
+          {activeTab === "profile" && (
+            <div className="p-6 max-w-2xl mx-auto">
+              <h2 className="text-4xl font-bold text-slate-900 dark:text-white mb-5">Edit Profile</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm mb-2 text-slate-600 dark:text-slate-300">Full Name</label>
+                  <input
+                    value={profile.fullName}
+                    onChange={(e) => setProfile((prev) => ({ ...prev, fullName: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm mb-2 text-slate-600 dark:text-slate-300">Hospital</label>
+                  <input
+                    value={profile.hospital}
+                    onChange={(e) => setProfile((prev) => ({ ...prev, hospital: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm mb-2 text-slate-600 dark:text-slate-300">Specialization</label>
+                  <input
+                    value={profile.specialization}
+                    onChange={(e) => setProfile((prev) => ({ ...prev, specialization: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm mb-2 text-slate-600 dark:text-slate-300">Experience (years)</label>
+                  <input
+                    value={profile.experienceYears}
+                    onChange={(e) => setProfile((prev) => ({ ...prev, experienceYears: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm mb-2 text-slate-600 dark:text-slate-300">Bio</label>
+                  <textarea
+                    value={profile.bio}
+                    onChange={(e) => setProfile((prev) => ({ ...prev, bio: e.target.value }))}
+                    rows={4}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <button
+                  onClick={handleProfileSave}
+                  className="w-full px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <div className="mt-6 flex justify-end">
+          <button
+            onClick={handleLogout}
+            className="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            Logout
+          </button>
         </div>
       </div>
 
-      {/* ── Patient Details Modal ───────────────────────────────────────────── */}
-      {selectedAppt && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedAppt(null)}
-        >
-          <div
-            className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-sm p-6 relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-              onClick={() => setSelectedAppt(null)}
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Patient Details</h3>
-            <div className="space-y-3 text-sm">
-              <Row icon={<User className="w-4 h-4 text-indigo-500" />} label="Name" value={selectedAppt.patientName} />
-              <Row
-                icon={<Calendar className="w-4 h-4 text-indigo-500" />}
-                label="Age / Gender"
-                value={`${selectedAppt.patientAge ?? "—"} · ${selectedAppt.patientGender ?? "—"}`}
-              />
-              {selectedAppt.patientPhone && (
-                <Row icon={<Phone className="w-4 h-4 text-indigo-500" />} label="Phone" value={selectedAppt.patientPhone} />
-              )}
-              {selectedAppt.patientEmail && (
-                <Row icon={<Mail className="w-4 h-4 text-indigo-500" />} label="Email" value={selectedAppt.patientEmail} />
-              )}
-              <Row
-                icon={<Clock className="w-4 h-4 text-indigo-500" />}
-                label="Time"
-                value={
-                  selectedAppt.appointmentTime
-                    ? new Date(selectedAppt.appointmentTime).toLocaleString()
-                    : "—"
-                }
-              />
-              {selectedAppt.reason && (
-                <Row
-                  icon={<Stethoscope className="w-4 h-4 text-indigo-500" />}
-                  label="Reason"
-                  value={selectedAppt.reason}
+      {isSlotModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-3xl font-semibold text-slate-900 dark:text-white">Add Time Slot</h3>
+              <button onClick={() => setIsSlotModalOpen(false)}>
+                <X className="h-5 w-5 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-sm mb-2 text-slate-600 dark:text-slate-300">Date</label>
+                <input
+                  type="date"
+                  value={newSlotDate}
+                  onChange={(e) => setNewSlotDate(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3"
                 />
-              )}
-              <div className="pt-2">
-                <StatusBadge status={selectedAppt.status} />
               </div>
+              <div>
+                <label className="block text-sm mb-2 text-slate-600 dark:text-slate-300">Start Time</label>
+                <input
+                  type="time"
+                  value={newSlotStartTime}
+                  onChange={(e) => setNewSlotStartTime(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3"
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-2 text-slate-600 dark:text-slate-300">End Time</label>
+                <input
+                  type="time"
+                  value={newSlotEndTime}
+                  onChange={(e) => setNewSlotEndTime(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3"
+                />
+              </div>
+
+              {slotError && <p className="text-red-600 text-sm">{slotError}</p>}
+            </div>
+
+            <div className="flex justify-end gap-3 px-6 py-5 border-t border-slate-200 dark:border-slate-700">
+              <button
+                onClick={() => setIsSlotModalOpen(false)}
+                className="px-6 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddSlot}
+                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+              >
+                Add Slot
+              </button>
             </div>
           </div>
         </div>
       )}
     </div>
   );
-}
+};
 
-function Row({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+const formatDateForInput = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const StatCard = ({
+  title,
+  value,
+  icon,
+  tint,
+}: {
+  title: string;
+  value: string;
+  icon: React.ReactNode;
+  tint: "emerald" | "blue" | "orange" | "purple";
+}) => {
+  const tintMap = {
+    emerald: "border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/20 dark:bg-emerald-900/10",
+    blue: "border-blue-200 dark:border-blue-900/40 bg-blue-50/20 dark:bg-blue-900/10",
+    orange: "border-orange-200 dark:border-orange-900/40 bg-orange-50/20 dark:bg-orange-900/10",
+    purple: "border-purple-200 dark:border-purple-900/40 bg-purple-50/20 dark:bg-purple-900/10",
+  };
+
+  const iconTintMap = {
+    emerald: "bg-emerald-100 dark:bg-emerald-900/40",
+    blue: "bg-blue-100 dark:bg-blue-900/40",
+    orange: "bg-orange-100 dark:bg-orange-900/40",
+    purple: "bg-purple-100 dark:bg-purple-900/40",
+  };
+
   return (
-    <div className="flex items-start gap-2">
-      <span className="mt-0.5">{icon}</span>
-      <div>
-        <span className="text-gray-500 dark:text-gray-400">{label}: </span>
-        <span className="text-gray-900 dark:text-white font-medium">{value}</span>
+    <article className={`rounded-2xl border p-6 ${tintMap[tint]}`}>
+      <div className="flex items-start justify-between mb-3">
+        <p className="text-slate-600 dark:text-slate-300 text-lg font-medium">{title}</p>
+        <div className={`rounded-xl p-3 ${iconTintMap[tint]}`}>{icon}</div>
       </div>
-    </div>
+      <p className="text-4xl font-bold text-slate-900 dark:text-white">{value}</p>
+    </article>
   );
-}
+};
+
+export default DoctorDashboard;

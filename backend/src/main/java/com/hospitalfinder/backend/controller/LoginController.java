@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.hospitalfinder.backend.dto.LoginRequest;
 import com.hospitalfinder.backend.dto.LoginResponse;
 import com.hospitalfinder.backend.dto.UserData;
+import com.hospitalfinder.backend.entity.Role;
 import com.hospitalfinder.backend.entity.User;
 import com.hospitalfinder.backend.service.JwtService;
 import com.hospitalfinder.backend.service.UserStoreService;
@@ -36,11 +37,29 @@ public class LoginController {
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request, HttpServletResponse response) {
+        return performLogin(request, response, null, "Login successful");
+    }
+
+    @PostMapping("/doctor/login")
+    public ResponseEntity<LoginResponse> doctorLogin(@RequestBody LoginRequest request, HttpServletResponse response) {
+        return performLogin(request, response, Role.DOCTOR, "Doctor login successful");
+    }
+
+    private ResponseEntity<LoginResponse> performLogin(
+            LoginRequest request,
+            HttpServletResponse response,
+            Role requiredRole,
+            String successMessage) {
         UserData userData = userStoreService.findByEmail(request.getEmail());
 
         if (userData == null || !passwordEncoder.matches(request.getPassword(), userData.getPassword())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new LoginResponse(false, "Invalid credentials", null, null, null, null, null));
+        }
+
+        if (requiredRole != null && userData.getRole() != requiredRole) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new LoginResponse(false, "Doctor account required", null, null, null, null, null));
         }
 
         // Convert UserData to User POJO for JWT generation
@@ -73,7 +92,7 @@ public class LoginController {
 
         return ResponseEntity.ok(new LoginResponse(
                 true,
-                "Login successful",
+            successMessage,
                 user.getId(),
                 user.getEmail(),
                 user.getName(),

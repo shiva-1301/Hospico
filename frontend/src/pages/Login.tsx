@@ -111,13 +111,13 @@ const Login = () => {
                 Hospital Partner
                 <span className="ml-auto text-xl">→</span>
               </Link>
-              <button
-                className="w-full flex items-center justify-between p-3 rounded-md border border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 font-medium cursor-not-allowed bg-gray-50 dark:bg-gray-800/50"
-                disabled
+              <Link
+                to="/doctor-login"
+                className="w-full flex items-center justify-center p-3 rounded-md border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 font-medium hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
               >
                 Doctor
-                <span className="ml-auto text-sm">Coming Soon</span>
-              </button>
+                <span className="ml-auto text-xl">→</span>
+              </Link>
             </div>
 
             <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 text-center mt-6">
